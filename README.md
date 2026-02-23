@@ -156,10 +156,13 @@ ollama --version
 ollama serve
 ```
 
-> **Mac でアプリ版を使っている場合：** Ollama.app を起動すれば自動で `ollama serve` が動きます。メニューバーにラマのアイコンが出ていればOKです。
+`ollama serve` を実行すると、そのターミナルは Ollama のサーバーとして使われるため、他のコマンドを入力できなくなります。
+**ターミナルをもう1つ開いて**、そちらで次のステップに進んでください。
+
+> **Mac でアプリ版を使っている場合：** Ollama.app を起動すれば自動で `ollama serve` が動きます。メニューバーにラマのアイコンが出ていればOKです。この場合、ターミナルを別に開く必要はありません。
 
 > **「Error: ollama server not responding」と出たら？**
-> Ollama がまだ起動していません。上の `ollama serve` を別のターミナルで実行するか、Mac の場合は Ollama.app を起動してください。
+> Ollama がまだ起動していません。別のターミナルで `ollama serve` を実行するか、Mac の場合は Ollama.app を起動してください。
 
 ---
 
