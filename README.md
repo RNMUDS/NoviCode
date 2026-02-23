@@ -1,281 +1,257 @@
 # RNNR_Coding
 
-**Curriculum-Constrained Local AI Coding Agent for Education and Research**
+**プログラミング学習のための、やさしいAIコーディングアシスタント**
 
-RNNR_Coding is an open-source, offline-first coding agent that runs entirely on local hardware using [Ollama](https://ollama.ai). Unlike general-purpose coding assistants, RNNR_Coding is deliberately constrained to a fixed educational curriculum. This constraint is not a limitation — it is the core design principle.
+RNNR_Coding は、あなたのパソコンだけで動くプログラミング学習用のAIです。
+インターネットに接続しなくても使えます。
+[Ollama](https://ollama.ai) というソフトの上で動きます。
 
----
-
-## Why Constraints Matter
-
-General-purpose coding agents suffer from a fundamental problem in educational settings: they generate anything the user asks for, across any language, framework, or domain. This produces several failure modes:
-
-1. **Language mixing** — An LLM asked to "make a visualization" may produce Python, JavaScript, or a hybrid. Students receive inconsistent output that cannot be reliably executed in their environment.
-2. **Scope drift** — Students accidentally receive code using advanced libraries, patterns, or languages they haven't learned yet.
-3. **Unreproducible sessions** — Without structured logging, educators cannot analyze how students interact with AI tools.
-4. **Security risks** — Unrestricted agents can install packages, make network requests, or modify system files.
-
-RNNR_Coding eliminates these problems through strict mode isolation, language enforcement, and a validation layer that inspects every generated artifact before delivery.
+ふつうのAIコーディングツールと違い、**学べる範囲をあえて絞っている**のが特徴です。
+「なんでもできる」のではなく、「決められた範囲を、安全に、しっかり学べる」ことを大切にしています。
 
 ---
 
-## Supported Domains
+## なぜ範囲を絞っているの？
 
-| Mode | Domain | Language | Key Libraries |
-|------|--------|----------|---------------|
-| `python_basic` | Python fundamentals | Python | Standard library only |
-| `py5` | Creative coding | Python | py5 (Processing) |
-| `sklearn` | Machine learning basics | Python | scikit-learn, numpy |
-| `pandas` | Data analysis | Python | pandas, matplotlib, seaborn |
-| `aframe` | WebXR / 3D | HTML + JS | A-Frame |
-| `threejs` | 3D graphics | HTML + JS | Three.js |
+ふつうのAIコーディングツールには、学習で使うと困る点があります。
 
-Anything outside these six domains is rejected at the policy layer.
+- **言語がごちゃ混ぜになる** — 「グラフを作って」と頼むと、Python で返ってきたり JavaScript で返ってきたり。どちらで動かせばいいかわからなくなります
+- **習っていないものが出てくる** — まだ知らないライブラリや難しい書き方が突然出てきて混乱します
+- **記録が残らない** — 先生がどんなやりとりがあったか確認できません
+- **危ないことができてしまう** — ファイルの削除やソフトのインストールなど、意図しない操作が起きることがあります
+
+RNNR_Coding は、これらの問題をすべて防ぐように作られています。
 
 ---
 
-## Supported Models
+## 6つの学習モード
 
-RNNR_Coding supports **only** two models:
+使いたい分野を選んでからスタートします。モードごとに使える言語とライブラリが決まっています。
 
-| Model | Min RAM | Use Case |
-|-------|---------|----------|
-| `qwen3:8b` | 8 GB | Lightweight, general coding tasks |
-| `qwen3-coder:30b` | 32 GB | Full capacity, complex generation |
+| モード | 何を学べる？ | 使う言語 | 使えるライブラリ |
+|--------|-------------|---------|----------------|
+| `python_basic` | Pythonの基礎 | Python | 標準ライブラリのみ |
+| `py5` | お絵かき・アニメーション | Python | py5（Processing） |
+| `sklearn` | AIと機械学習の入門 | Python | scikit-learn, numpy |
+| `pandas` | データ分析とグラフ | Python | pandas, matplotlib, seaborn |
+| `aframe` | ブラウザで3D・VR | HTML + JS | A-Frame |
+| `threejs` | ブラウザで3Dグラフィックス | HTML + JS | Three.js |
 
-At startup, if `--model auto` is used (default), the system detects available RAM and selects the appropriate model automatically.
+この6つ以外のお願い（たとえば「Javaで書いて」「Dockerを使って」など）には、丁寧にお断りします。
+
+### 言語の混在は起きません
+
+- Python系のモード（python_basic, py5, sklearn, pandas）では、HTMLやJavaScriptは一切生成されません
+- Web系のモード（aframe, threejs）では、Pythonコードは一切生成されません
+
+AIが間違えて別の言語を出力しようとしても、チェック機能が検出して自動的にやり直します。
 
 ---
 
-## Installation
+## 使えるAIモデル
+
+RNNR_Coding が使えるモデルは2つだけです。
+
+| モデル | 必要なメモリ | 特徴 |
+|--------|------------|------|
+| `qwen3:8b` | 8 GB 以上 | 軽量。メモリが少ないパソコンでもOK |
+| `qwen3-coder:30b` | 32 GB 以上 | 高性能。より正確なコード生成 |
+
+起動時にパソコンのメモリを調べて、自動的に最適なモデルを選んでくれます。
+
+---
+
+## インストール方法
+
+3ステップで始められます。
 
 ```bash
-# 1. Install Ollama
-# See https://ollama.ai for platform-specific instructions
+# ステップ1: Ollama をインストール
+# https://ollama.ai からダウンロードしてください
 
-# 2. Pull a supported model
+# ステップ2: AIモデルをダウンロード
 ollama pull qwen3:8b
-# or
-ollama pull qwen3-coder:30b
 
-# 3. Install RNNR_Coding
-git clone https://github.com/your-org/RNNR_Coding.git
+# ステップ3: RNNR_Coding をインストール
+git clone https://github.com/RNMUDS/RNNR_Coding.git
 cd RNNR_Coding
 pip install -e .
 ```
 
 ---
 
-## Usage
+## 使い方
 
-### Basic Usage
+### 起動する
 
 ```bash
-# Start in Python fundamentals mode
+# Pythonの基礎を学ぶ
 rnnr --mode python_basic
 
-# Start in pandas mode with research logging
+# データ分析を学ぶ（学習ログあり）
 rnnr --mode pandas --research
 
-# Start in A-Frame mode with debug output
-rnnr --mode aframe --debug
+# 3D（A-Frame）を学ぶ
+rnnr --mode aframe
 
-# Use a specific model
+# モデルを指定して起動
 rnnr --mode sklearn --model qwen3-coder:30b
 ```
 
-### Interactive Commands
+### 会話中に使えるコマンド
 
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/exit` | Exit the session |
-| `/clear` | Clear conversation history |
-| `/metrics` | Show session metrics |
-| `/trace` | Show last LLM interaction |
-| `/status` | Show session status |
-| `/save` | Save session to disk |
+| コマンド | 何ができる？ |
+|---------|------------|
+| `/help` | コマンド一覧を表示 |
+| `/exit` | 終了する |
+| `/clear` | 会話履歴をクリア |
+| `/metrics` | 学習の統計を表示 |
+| `/trace` | 直前のAIとのやりとりを表示 |
+| `/status` | 今のセッション情報を表示 |
+| `/save` | セッションを保存する |
 
-### CLI Flags
+### 起動オプション一覧
 
-| Flag | Description |
-|------|-------------|
-| `--mode` | **Required.** One of: `python_basic`, `py5`, `sklearn`, `pandas`, `aframe`, `threejs` |
-| `--model` | Model name or `auto` (default: `auto`) |
-| `--safe-mode` | Enable extra safety restrictions |
-| `--debug` | Print debug information |
-| `--max-iterations` | Max agent loop iterations (default: 50) |
-| `--research` | Enable research mode logging |
-| `--resume SESSION_ID` | Resume a previous session |
-| `--list-sessions` | List all saved sessions |
-| `--export-session SESSION_ID` | Export session to JSONL |
-
----
-
-## Architecture
-
-```
-rnnr/
-├── main.py              # Entry point, interactive loop
-├── cli.py               # Argument parser
-├── agent_loop.py        # Core agentic loop (<200 lines)
-├── llm_adapter.py       # Ollama API communication
-├── tool_registry.py     # Tool instantiation and dispatch
-├── security_manager.py  # Command and path blocklists
-├── policy_engine.py     # Mode-specific policy enforcement
-├── validator.py         # Language isolation and output validation
-├── session_manager.py   # Session persistence and export
-├── metrics.py           # Iteration and usage tracking
-├── config.py            # Models, modes, constants
-└── tools/
-    ├── bash_tool.py     # Shell command execution
-    ├── read_tool.py     # File reading
-    ├── write_tool.py    # File writing
-    ├── edit_tool.py     # String replacement editing
-    ├── grep_tool.py     # Regex content search
-    └── glob_tool.py     # File pattern matching
-```
-
-### Mode System
-
-Each mode defines a `ModeProfile` that specifies:
-
-- **System prompt** — Instructs the LLM to stay within the domain
-- **Language family** — Python or Web (HTML+JS)
-- **Allowed imports** — Whitelist of permitted Python modules
-- **Allowed file extensions** — Only `.py` in Python modes, only `.html/.js/.css` in web modes
-- **Allowed tools** — Web modes cannot use `bash` to prevent arbitrary execution
-
-The mode is selected at startup via `--mode` and cannot be changed during a session.
-
-### Validation Layer
-
-The `Validator` inspects every piece of generated code before it reaches the user:
-
-1. **Language isolation** — Detects HTML/JS in Python mode and Python in web mode using heuristic pattern matching
-2. **Import whitelist** — Parses Python AST to extract imports, rejects anything not in the mode's allow-list
-3. **Line count limit** — Rejects output exceeding 300 lines (configurable)
-4. **File count limit** — Rejects multi-file output (default: 1 file per response)
-5. **Forbidden patterns** — Blocks URLs, `pip install`, `os.system()`, `subprocess` usage
-6. **Retry mechanism** — On violation, generates a correction prompt and re-queries the LLM
-
-When a violation is detected:
-- The response is rejected (never shown to the user)
-- A correction prompt is injected into the conversation
-- The LLM is re-queried with explicit instructions to fix the issue
-- The violation is logged (in research mode)
-
-### Security Model
-
-RNNR_Coding enforces a strict security perimeter:
-
-**Blocked at shell level:**
-- `sudo`, `chmod`, `chown`, `dd`, `mkfs`, `rm -rf /`
-- `curl`, `wget`, `ssh`, `scp`, `nc`, `nmap`
-- `pip install`, `npm install`, `yarn add`
-- `docker`, `systemctl`, `kill`, `shutdown`, `reboot`
-- `curl | bash` piping patterns
-
-**Blocked at file level:**
-- Writing outside the working directory
-- Symlink traversal
-- File extension violations
-
-**Blocked at code level:**
-- Network libraries (`requests`, `httpx`, `socket`, `urllib`)
-- System libraries (`subprocess`, `os.system`, `shutil`, `ctypes`)
-- URL references in generated code
-
-This system is designed to be **strictly offline and curriculum-limited**.
+| オプション | 説明 |
+|-----------|------|
+| `--mode` | **必須。** 学習モードを選ぶ（上の6つから1つ） |
+| `--model` | 使うモデルを指定（省略すると自動選択） |
+| `--safe-mode` | より安全な制限を有効にする |
+| `--debug` | デバッグ情報を表示する |
+| `--max-iterations` | AIの最大思考回数（初期値: 50） |
+| `--research` | 研究モード（すべてのやりとりを記録） |
+| `--resume セッションID` | 前回の続きから再開 |
+| `--list-sessions` | 保存済みセッション一覧 |
+| `--export-session セッションID` | セッションをファイルに書き出す |
 
 ---
 
-## Research Mode
+## 安全のしくみ
 
-When started with `--research`, RNNR_Coding logs every interaction in structured JSONL format:
+RNNR_Coding は、学習者が安心して使えるようにたくさんの安全対策をしています。
+
+### やってはいけないことを自動でブロック
+
+- `sudo`, `rm -rf`, `chmod` などの危険なコマンド
+- `curl`, `wget`, `ssh` などのネットワーク通信
+- `pip install`, `npm install` などのパッケージ追加
+- 作業フォルダの外へのファイル書き込み
+
+### コードの中身もチェック
+
+- `requests`, `subprocess` などの危険なライブラリの使用を検出
+- モードで許可されていないライブラリの使用を検出
+- URLやAPIへのアクセスを検出
+
+すべてブロックされ、安全な範囲でのみ動作します。
+
+---
+
+## 研究モード（先生・研究者向け）
+
+`--research` をつけて起動すると、すべてのやりとりが記録されます。
 
 ```bash
 rnnr --mode python_basic --research
 ```
 
-Each session produces a reproducible log containing:
+記録される内容：
 
-- All user prompts
-- All LLM outputs (raw)
-- All validation failures with rule and detail
-- All language violation detections
-- All tool calls and results
-- Iteration counts
-- Selected mode and model
-- Timing information
+- 学習者の質問（プロンプト）
+- AIの回答
+- バリデーション違反（言語混在など）
+- ツールの使用状況
+- 思考回数と時間
 
-### Exporting Research Data
+### データの書き出し
 
 ```bash
-# List all sessions
+# セッション一覧を見る
 rnnr --mode python_basic --list-sessions
 
-# Export a specific session
+# 特定のセッションを書き出す
 rnnr --mode python_basic --export-session abc123def456
 ```
 
-The JSONL format enables direct analysis with `pandas`, `jq`, or any log-processing pipeline.
+JSONL形式で出力されるので、pandas や jq で分析できます。
 
 ---
 
-## Comparison with Generic Coding Agents
+## プロジェクト構成
 
-| Feature | Generic Agent | RNNR_Coding |
-|---------|--------------|-------------|
-| Language scope | Any | 6 fixed domains |
-| Model support | Cloud APIs | Local only (Qwen3) |
-| Language mixing | Unrestricted | Strictly prohibited |
-| Import control | None | Whitelist per mode |
-| Network access | Allowed | Blocked |
-| Package installation | Allowed | Blocked |
-| Research logging | Varies | Structured JSONL |
-| Session reproducibility | No | Yes |
-| Output validation | None | Multi-layer |
-
----
-
-## Educational Usage Example
-
-**Scenario:** A university course on data analysis using pandas.
-
-1. Instructor configures student environments with Ollama + `qwen3:8b`
-2. Students launch: `rnnr --mode pandas --research`
-3. Students interact with the agent to learn pandas operations
-4. The agent **cannot** generate Flask web apps, React components, or Rust code — even if asked
-5. All sessions are logged for the instructor to review learning patterns
-6. The instructor exports JSONL logs for research on AI-assisted pedagogy
+```
+rnnr/
+├── main.py              # メインの起動ファイル
+├── cli.py               # コマンドライン引数の処理
+├── agent_loop.py        # AIとの対話ループ
+├── llm_adapter.py       # Ollamaとの通信
+├── tool_registry.py     # ツールの管理と実行
+├── security_manager.py  # 安全チェック（コマンド・パス）
+├── policy_engine.py     # モード別のルール管理
+├── validator.py         # 出力の検証（言語分離など）
+├── session_manager.py   # セッションの保存・再開
+├── metrics.py           # 統計の記録
+├── config.py            # 設定値・定数
+└── tools/               # 各ツールの実装
+    ├── bash_tool.py     # シェルコマンド実行
+    ├── read_tool.py     # ファイル読み取り
+    ├── write_tool.py    # ファイル書き込み
+    ├── edit_tool.py     # ファイル編集
+    ├── grep_tool.py     # テキスト検索
+    └── glob_tool.py     # ファイル名検索
+```
 
 ---
 
-## Roadmap
+## ふつうのAIツールとのちがい
 
-- [ ] **v0.2** — Curriculum progression tracking (beginner → intermediate → advanced)
-- [ ] **v0.3** — Multi-file project mode with configurable file limits
-- [ ] **v0.4** — Built-in exercise/challenge system with auto-grading
-- [ ] **v0.5** — Instructor dashboard for session analytics
-- [ ] **v0.6** — Support for additional Qwen model variants as they release
-- [ ] **v0.7** — Jupyter notebook integration for pandas/sklearn modes
-- [ ] **v0.8** — Live preview server for A-Frame/Three.js modes (localhost only)
-- [ ] **v1.0** — Stable release with full documentation and deployment guides
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
+| 比較ポイント | ふつうのAIツール | RNNR_Coding |
+|------------|----------------|-------------|
+| 対応範囲 | なんでもOK | 6つの学習分野だけ |
+| 動く場所 | クラウド（ネット必要） | 自分のパソコンだけ |
+| 言語の混在 | よくある | 起きない |
+| ライブラリ制限 | なし | モードごとに許可制 |
+| ネット通信 | できる | できない |
+| パッケージ追加 | できる | できない |
+| 学習ログ | なし or バラバラ | JSONL形式で統一 |
+| 再現性 | なし | あり |
 
 ---
 
-## Contributing
+## 使い方の例：大学の授業で使う場合
 
-Contributions are welcome. Please ensure all changes:
+1. 先生が学生のパソコンに Ollama と `qwen3:8b` をセットアップ
+2. 学生は `rnnr --mode pandas --research` で起動
+3. 学生がAIと対話しながら pandas の使い方を学ぶ
+4. AIは pandas 以外のこと（Webアプリ、ゲーム制作など）は教えない
+5. 先生はログを見て、学生がどこでつまずいたか確認できる
 
-1. Maintain strict mode isolation
-2. Do not expand the supported model list without explicit discussion
-3. Include tests for new validation rules
-4. Follow the existing code style (type hints, docstrings, no external dependencies beyond Ollama)
+---
+
+## 今後の予定
+
+- [ ] **v0.2** — レベル別の学習（初級 → 中級 → 上級）
+- [ ] **v0.3** — 複数ファイルを使うプロジェクトへの対応
+- [ ] **v0.4** — 練習問題と自動採点
+- [ ] **v0.5** — 先生向けダッシュボード
+- [ ] **v0.6** — Qwen の新しいモデルへの対応
+- [ ] **v0.7** — Jupyter Notebook との連携
+- [ ] **v0.8** — A-Frame / Three.js のプレビュー機能
+- [ ] **v1.0** — 正式リリース
+
+---
+
+## ライセンス
+
+MIT ライセンスです。自由に使えます。詳しくは [LICENSE](LICENSE) をご覧ください。
+
+---
+
+## 開発に参加するには
+
+プルリクエスト歓迎です。以下のルールを守ってください。
+
+1. モードごとの言語分離を壊さないこと
+2. 対応モデルを勝手に増やさないこと（事前に相談）
+3. 新しいバリデーションルールにはテストをつけること
+4. 既存のコードスタイル（型ヒント、docstring）に合わせること
