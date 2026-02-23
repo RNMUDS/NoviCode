@@ -93,10 +93,6 @@ python3 --version
 brew install python
 ```
 
-**Windows の場合：**
-- https://www.python.org/downloads/ からインストーラーをダウンロード
-- インストール時に「Add Python to PATH」にチェックを入れてください
-
 **Linux (Ubuntu) の場合：**
 ```bash
 sudo apt update && sudo apt install python3 python3-pip
@@ -118,9 +114,6 @@ git --version
 xcode-select --install
 ```
 
-**Windows の場合：**
-- https://git-scm.com/downloads/win からダウンロードしてインストール
-
 **Linux (Ubuntu) の場合：**
 ```bash
 sudo apt install git
@@ -141,10 +134,6 @@ https://ollama.com/download/mac からダウンロードして、アプリケー
 ```bash
 brew install ollama
 ```
-
-**Windows の場合：**
-
-https://ollama.com/download/windows からダウンロードしてインストールしてください。
 
 **Linux の場合：**
 ```bash
