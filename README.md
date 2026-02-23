@@ -68,35 +68,40 @@ RNNR_Coding を動かすには、以下の3つが必要です。
 
 | 必要なもの | 何をするもの？ | 確認コマンド |
 |-----------|--------------|-------------|
-| Python 3.10 以上 | RNNR_Coding 本体を動かす | `python3 --version` |
+| uv | Python の環境をまとめて管理してくれるツール | `uv --version` |
 | Git | ソースコードをダウンロードする | `git --version` |
 | Ollama | AIモデルを動かすためのソフト | `ollama --version` |
 
+> **uv って何？**
+> uv は Python のインストール・パッケージ管理・仮想環境の作成をまとめてやってくれるツールです。
+> Python がまだ入っていなくても、uv が自動的にダウンロードしてくれるので安心です。
+
 ---
 
-## ステップ 1: Python のインストール
-
-ターミナルで以下を入力して、バージョンが表示されればOKです。
-
-```bash
-python3 --version
-```
-
-表示されない場合は、お使いのパソコンに合わせてインストールしてください。
+## ステップ 1: uv のインストール
 
 **Mac の場合：**
 ```bash
-# Homebrew がまだない場合は、先に Homebrew をインストール
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Python をインストール
-brew install python
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**Linux (Ubuntu) の場合：**
+または Homebrew でもインストールできます。
 ```bash
-sudo apt update && sudo apt install python3 python3-pip
+brew install uv
 ```
+
+**Linux の場合：**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+インストールできたか確認しましょう。
+
+```bash
+uv --version
+```
+
+バージョンが表示されればOKです。
 
 ---
 
@@ -238,10 +243,32 @@ ollama pull qwen3-coder:30b
 ```bash
 git clone https://github.com/RNMUDS/RNNR_Coding.git
 cd RNNR_Coding
-pip install -e .
+uv sync
 ```
 
+`uv sync` を実行すると、以下が自動的に行われます。
+
+- 必要なバージョンの Python がなければ自動ダウンロード
+- 仮想環境（`.venv`）の作成
+- 必要なパッケージのインストール
+
 これで準備完了です。
+
+### 起動するときは
+
+`uv run` をつけてコマンドを実行します。
+
+```bash
+uv run rnnr --mode python_basic
+```
+
+> **`uv run` って何？**
+> `uv sync` で作った仮想環境の中でコマンドを実行する、という意味です。
+> 毎回つけるのが面倒なら、以下で仮想環境に入ってから使うこともできます。
+> ```bash
+> source .venv/bin/activate
+> rnnr --mode python_basic
+> ```
 
 ---
 
@@ -253,9 +280,8 @@ pip install -e .
 | `Error: ollama server not responding` | Ollama が起動していません。`ollama serve` を実行するか、Ollama.app を起動してください |
 | `requires a newer version of Ollama` | Ollama のバージョンが古いです。ステップ4の「アップデート手順」を確認してください |
 | `Warning: client version is newer` | Ollama のクライアントとサーバーのバージョンが合っていません。`pkill ollama` してから `ollama serve` を再実行してください |
-| `python3: command not found` | Python がインストールされていません。ステップ1を確認してください |
+| `uv: command not found` | uv がインストールされていません。ステップ1を確認してください |
 | `git: command not found` | Git がインストールされていません。ステップ2を確認してください |
-| `pip: command not found` | `pip3 install -e .` を試してください |
 | モデルのダウンロードが遅い | 初回は数GBあるので時間がかかります。Wi-Fi環境での実行をおすすめします |
 | 30b モデルが遅い・固まる | メモリ不足の可能性があります。`qwen3:8b` に切り替えてください |
 
