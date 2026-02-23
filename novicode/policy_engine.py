@@ -82,13 +82,10 @@ class PolicyEngine:
         """Return the full system prompt for the active mode, including education."""
         base = self.profile.system_prompt
         constraint = (
-            "\n\nIMPORTANT CONSTRAINTS:\n"
-            "- You must ONLY generate code in the permitted language for this mode.\n"
-            "- Do NOT import libraries outside the allowed set.\n"
-            "- Do NOT generate files with disallowed extensions.\n"
-            "- Keep output concise: max 300 lines, 1 file per response.\n"
-            "- Do NOT make network requests or install packages.\n"
-            f"\n{SCOPE_DESCRIPTION}"
+            "\n\n【制約】\n"
+            "- このモードで許可された言語・ライブラリだけを使う。\n"
+            "- 1回の返答のコードは最大10行。短く保つ。\n"
+            "- ネットワーク通信・パッケージ追加は禁止。\n"
         )
 
         education = build_education_prompt(self.profile.mode, self.level)

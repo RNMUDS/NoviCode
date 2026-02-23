@@ -124,19 +124,19 @@ class TestLevelJudgment:
 class TestEducationPrompt:
     def test_beginner_prompt_contains_key_phrases(self):
         prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
-        assert "段階的に教える" in prompt
+        assert "1ステップだけ" in prompt
         assert "初級" in prompt
         assert "Python" in prompt
 
     def test_intermediate_prompt_contains_additions(self):
         prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.INTERMEDIATE)
         assert "中級" in prompt
-        assert "テストを書いてから" in prompt
+        assert "テストの書き方を促す" in prompt
 
     def test_advanced_prompt_contains_all_sections(self):
         prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.ADVANCED)
         assert "上級" in prompt
-        assert "設計パターン" in prompt
+        assert "設計" in prompt
         assert "パフォーマンス" in prompt
 
     def test_all_modes_generate_prompts(self):

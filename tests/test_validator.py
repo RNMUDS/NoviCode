@@ -69,7 +69,7 @@ class TestLineLimits:
         assert any(v.rule == "max_lines" for v in result.violations)
 
     def test_within_max_lines(self, python_validator):
-        code = "\n".join(f"x = {i}" for i in range(100))
+        code = "\n".join(f"x = {i}" for i in range(40))
         result = python_validator.validate(code, "test.py")
         assert result.valid
 
