@@ -189,30 +189,29 @@ uv sync
 - 仮想環境（`.venv`）の作成
 - 必要なパッケージのインストール
 
-これで準備完了です。
+### 動作確認
 
-> **うまく動かない場合：**
-> `.venv` を削除してからやり直してください。
-> ```bash
-> rm -rf .venv
-> uv sync
-> ```
+インストールが成功したか確認しましょう。
 
-### 起動するときは
+```bash
+uv run novicode --help
+```
 
-`uv run` をつけてコマンドを実行します。
+コマンドの使い方が表示されれば成功です。
+
+**エラーが出る場合** は、キャッシュが原因の可能性があります。以下を実行してください。
+
+```bash
+rm -rf .venv
+uv cache clean novicode
+uv sync
+```
+
+### 起動する
 
 ```bash
 uv run novicode --mode python_basic
 ```
-
-> **`uv run` って何？**
-> `uv sync` で作った仮想環境の中でコマンドを実行する、という意味です。
-> 毎回つけるのが面倒なら、以下で仮想環境に入ってから使うこともできます。
-> ```bash
-> source .venv/bin/activate
-> novicode --mode python_basic
-> ```
 
 ---
 
