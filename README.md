@@ -61,22 +61,165 @@ RNNR_Coding が使えるモデルは2つだけです。
 
 ---
 
-## インストール方法
+## はじめる前に必要なもの
 
-3ステップで始められます。
+RNNR_Coding を動かすには、以下の3つが必要です。
+はじめての方は、上から順番にセットアップしてください。
+
+| 必要なもの | 何をするもの？ | 確認コマンド |
+|-----------|--------------|-------------|
+| Python 3.10 以上 | RNNR_Coding 本体を動かす | `python3 --version` |
+| Git | ソースコードをダウンロードする | `git --version` |
+| Ollama | AIモデルを動かすためのソフト | `ollama --version` |
+
+---
+
+## ステップ 1: Python のインストール
+
+ターミナルで以下を入力して、バージョンが表示されればOKです。
 
 ```bash
-# ステップ1: Ollama をインストール
-# https://ollama.ai からダウンロードしてください
+python3 --version
+```
 
-# ステップ2: AIモデルをダウンロード
+表示されない場合は、お使いのパソコンに合わせてインストールしてください。
+
+**Mac の場合：**
+```bash
+# Homebrew がまだない場合は、先に Homebrew をインストール
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Python をインストール
+brew install python
+```
+
+**Windows の場合：**
+- https://www.python.org/downloads/ からインストーラーをダウンロード
+- インストール時に「Add Python to PATH」にチェックを入れてください
+
+**Linux (Ubuntu) の場合：**
+```bash
+sudo apt update && sudo apt install python3 python3-pip
+```
+
+---
+
+## ステップ 2: Git のインストール
+
+```bash
+git --version
+```
+
+表示されない場合：
+
+**Mac の場合：**
+```bash
+# 初回実行時に自動でインストールされます
+xcode-select --install
+```
+
+**Windows の場合：**
+- https://git-scm.com/downloads/win からダウンロードしてインストール
+
+**Linux (Ubuntu) の場合：**
+```bash
+sudo apt install git
+```
+
+---
+
+## ステップ 3: Ollama のインストール
+
+Ollama は、AIモデルをパソコンの中で動かすためのソフトです。
+これがないと RNNR_Coding は動きません。
+
+**Mac の場合：**
+
+https://ollama.com/download/mac からダウンロードして、アプリケーションフォルダに入れてください。
+
+または Homebrew でもインストールできます。
+```bash
+brew install ollama
+```
+
+**Windows の場合：**
+
+https://ollama.com/download/windows からダウンロードしてインストールしてください。
+
+**Linux の場合：**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### Ollama が動いているか確認する
+
+インストール後、ターミナルで以下を入力してください。
+
+```bash
+ollama --version
+```
+
+バージョンが表示されればインストール成功です。
+
+次に、Ollama を起動します。
+
+```bash
+ollama serve
+```
+
+> **Mac でアプリ版を使っている場合：** Ollama.app を起動すれば自動で `ollama serve` が動きます。メニューバーにラマのアイコンが出ていればOKです。
+
+> **「Error: ollama server not responding」と出たら？**
+> Ollama がまだ起動していません。上の `ollama serve` を別のターミナルで実行するか、Mac の場合は Ollama.app を起動してください。
+
+---
+
+## ステップ 4: AIモデルのダウンロード
+
+Ollama が起動している状態で、AIモデルをダウンロードします。
+（初回は数GBのダウンロードがあるので、少し時間がかかります）
+
+```bash
 ollama pull qwen3:8b
+```
 
-# ステップ3: RNNR_Coding をインストール
+> メモリが 32GB 以上あるパソコンでは、より高性能なモデルも使えます。
+> ```bash
+> ollama pull qwen3-coder:30b
+> ```
+
+ダウンロードが終わったら、正しく入ったか確認しましょう。
+
+```bash
+ollama list
+```
+
+`qwen3:8b` が一覧に表示されていればOKです。
+
+---
+
+## ステップ 5: RNNR_Coding のインストール
+
+```bash
 git clone https://github.com/RNMUDS/RNNR_Coding.git
 cd RNNR_Coding
 pip install -e .
 ```
+
+これで準備完了です。
+
+---
+
+## うまくいかないときは
+
+| 症状 | 原因と対処 |
+|------|-----------|
+| `ollama: command not found` | Ollama がインストールされていません。ステップ3を確認してください |
+| `Error: ollama server not responding` | Ollama が起動していません。`ollama serve` を実行するか、Ollama.app を起動してください |
+| `python3: command not found` | Python がインストールされていません。ステップ1を確認してください |
+| `git: command not found` | Git がインストールされていません。ステップ2を確認してください |
+| `pip: command not found` | `pip3 install -e .` を試してください |
+| モデルのダウンロードが遅い | 初回は数GBあるので時間がかかります。Wi-Fi環境での実行をおすすめします |
 
 ---
 
