@@ -3,7 +3,7 @@
 import pytest
 import tempfile
 import os
-from rnnr.security_manager import SecurityManager
+from novicode.security_manager import SecurityManager
 
 
 @pytest.fixture

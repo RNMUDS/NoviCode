@@ -1,14 +1,14 @@
-"""Write tool — writes files within security boundaries and policy constraints."""
+"""Edit tool — performs string replacement in files."""
 
 from __future__ import annotations
 
 import os
-from rnnr.security_manager import SecurityManager
-from rnnr.policy_engine import PolicyEngine
+from novicode.security_manager import SecurityManager
+from novicode.policy_engine import PolicyEngine
 
 
-class WriteTool:
-    name = "write"
+class EditTool:
+    name = "edit"
 
     def __init__(
         self, security: SecurityManager, policy: PolicyEngine, working_dir: str
@@ -19,26 +19,31 @@ class WriteTool:
 
     def execute(self, arguments: dict) -> dict:
         path = arguments.get("path", "")
-        content = arguments.get("content", "")
+        old_string = arguments.get("old_string", "")
+        new_string = arguments.get("new_string", "")
         if not path:
             return {"error": "No path provided"}
 
         full_path = os.path.join(self.working_dir, path) if not os.path.isabs(path) else path
 
-        # Security check
         verdict = self.security.check_path(full_path)
         if not verdict.allowed:
             return {"error": f"Blocked: {verdict.reason}"}
 
-        # Policy: file extension check
         ext_verdict = self.policy.check_file_extension(full_path)
         if not ext_verdict.allowed:
             return {"error": f"Policy violation: {ext_verdict.reason}"}
 
         try:
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, "w") as f:
-                f.write(content)
-            return {"status": "ok", "path": full_path, "bytes": len(content)}
-        except Exception as exc:
-            return {"error": str(exc)}
+            with open(full_path, "r") as f:
+                content = f.read()
+        except FileNotFoundError:
+            return {"error": f"File not found: {path}"}
+
+        if old_string not in content:
+            return {"error": "old_string not found in file"}
+
+        new_content = content.replace(old_string, new_string, 1)
+        with open(full_path, "w") as f:
+            f.write(new_content)
+        return {"status": "ok", "path": full_path}

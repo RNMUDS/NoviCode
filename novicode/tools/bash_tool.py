@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from rnnr.security_manager import SecurityManager, SecurityVerdict
+from novicode.security_manager import SecurityManager, SecurityVerdict
 
 
 class BashTool:

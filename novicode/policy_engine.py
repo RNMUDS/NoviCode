@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from rnnr.config import (
+from novicode.config import (
     SCOPE_DESCRIPTION,
     ModeProfile,
     LanguageFamily,
 )
+from novicode.curriculum import Level, build_education_prompt
 
 
 @dataclass(frozen=True)
@@ -21,8 +22,9 @@ class PolicyVerdict:
 class PolicyEngine:
     """Evaluates requests and tool calls against the active mode profile."""
 
-    def __init__(self, profile: ModeProfile) -> None:
+    def __init__(self, profile: ModeProfile, level: Level = Level.BEGINNER) -> None:
         self.profile = profile
+        self.level = level
 
     def check_tool_allowed(self, tool_name: str) -> PolicyVerdict:
         """Is this tool permitted in the current mode?"""
@@ -77,7 +79,7 @@ class PolicyEngine:
         return PolicyVerdict(allowed=True)
 
     def build_system_prompt(self) -> str:
-        """Return the full system prompt for the active mode."""
+        """Return the full system prompt for the active mode, including education."""
         base = self.profile.system_prompt
         constraint = (
             "\n\nIMPORTANT CONSTRAINTS:\n"
@@ -88,6 +90,10 @@ class PolicyEngine:
             "- Do NOT make network requests or install packages.\n"
             f"\n{SCOPE_DESCRIPTION}"
         )
+
+        education = build_education_prompt(self.profile.mode, self.level)
+        if education:
+            return education + "\n\n" + base + constraint
         return base + constraint
 
 

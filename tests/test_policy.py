@@ -1,8 +1,8 @@
 """Tests for policy engine."""
 
 import pytest
-from rnnr.config import Mode, build_mode_profile
-from rnnr.policy_engine import PolicyEngine
+from novicode.config import Mode, build_mode_profile
+from novicode.policy_engine import PolicyEngine
 
 
 @pytest.fixture

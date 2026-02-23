@@ -1,7 +1,7 @@
 """Tests for config module."""
 
 import pytest
-from rnnr.config import (
+from novicode.config import (
     validate_model,
     auto_select_model,
     Mode,

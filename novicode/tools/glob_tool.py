@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import glob as _glob
 import os
-from rnnr.security_manager import SecurityManager
+from novicode.security_manager import SecurityManager
 
 
 class GlobTool:

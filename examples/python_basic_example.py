@@ -1,7 +1,7 @@
-"""Example: Using RNNR_Coding in python_basic mode.
+"""Example: Using NoviCode in python_basic mode.
 
 Start the agent:
-    rnnr --mode python_basic
+    novicode --mode python_basic
 
 Then try these prompts:
 

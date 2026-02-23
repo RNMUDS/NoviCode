@@ -14,6 +14,7 @@ class Metrics:
     retries: int = 0
     tokens_in: int = 0
     tokens_out: int = 0
+    concepts_taught: list[str] = field(default_factory=list)
     start_time: float = field(default_factory=time.time)
 
     def record_tool_call(self, tool_name: str) -> None:
@@ -37,6 +38,7 @@ class Metrics:
             "tool_calls": dict(self.tool_calls),
             "violations": self.violations,
             "retries": self.retries,
+            "concepts_taught": list(set(self.concepts_taught)),
             "elapsed_s": round(self.elapsed_seconds(), 2),
         }
 
@@ -45,6 +47,7 @@ class Metrics:
             f"Iterations : {self.iterations}",
             f"Violations : {self.violations}",
             f"Retries    : {self.retries}",
+            f"Concepts   : {len(set(self.concepts_taught))} unique",
             f"Elapsed    : {self.elapsed_seconds():.1f}s",
             f"Tool calls :",
         ]

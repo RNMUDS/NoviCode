@@ -7,7 +7,7 @@ import urllib.request
 import urllib.error
 from dataclasses import dataclass, field
 
-from rnnr.config import OLLAMA_BASE_URL, SUPPORTED_MODELS
+from novicode.config import OLLAMA_BASE_URL, SUPPORTED_MODELS
 
 
 @dataclass

@@ -1,8 +1,8 @@
 """Tests for the validation layer."""
 
 import pytest
-from rnnr.config import Mode, build_mode_profile
-from rnnr.validator import Validator, correction_prompt
+from novicode.config import Mode, build_mode_profile
+from novicode.validator import Validator, correction_prompt
 
 
 @pytest.fixture
@@ -101,7 +101,7 @@ class TestBatchValidation:
 
 class TestCorrectionPrompt:
     def test_correction_prompt_format(self):
-        from rnnr.validator import Violation
+        from novicode.validator import Violation
         violations = [Violation(rule="language_isolation", detail="HTML in Python mode")]
         prompt = correction_prompt(violations, "python_basic")
         assert "language_isolation" in prompt

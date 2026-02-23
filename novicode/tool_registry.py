@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from rnnr.config import ModeProfile
-from rnnr.security_manager import SecurityManager
-from rnnr.policy_engine import PolicyEngine
-from rnnr.tools.bash_tool import BashTool
-from rnnr.tools.read_tool import ReadTool
-from rnnr.tools.write_tool import WriteTool
-from rnnr.tools.edit_tool import EditTool
-from rnnr.tools.grep_tool import GrepTool
-from rnnr.tools.glob_tool import GlobTool
+from novicode.config import ModeProfile
+from novicode.security_manager import SecurityManager
+from novicode.policy_engine import PolicyEngine
+from novicode.tools.bash_tool import BashTool
+from novicode.tools.read_tool import ReadTool
+from novicode.tools.write_tool import WriteTool
+from novicode.tools.edit_tool import EditTool
+from novicode.tools.grep_tool import GrepTool
+from novicode.tools.glob_tool import GlobTool
 
 
 class ToolRegistry:

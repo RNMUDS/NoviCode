@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from rnnr.security_manager import SecurityManager
+from novicode.security_manager import SecurityManager
 
 
 class ReadTool:

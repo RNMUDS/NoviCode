@@ -1,16 +1,16 @@
-"""CLI argument parser for RNNR_Coding."""
+"""CLI argument parser for NoviCode."""
 
 from __future__ import annotations
 
 import argparse
 
-from rnnr.config import SUPPORTED_MODELS, Mode, DEFAULT_MAX_ITERATIONS
+from novicode.config import SUPPORTED_MODELS, Mode, DEFAULT_MAX_ITERATIONS
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="rnnr",
-        description="RNNR_Coding — Curriculum-constrained local AI coding agent",
+        prog="novicode",
+        description="NoviCode — プログラミング学習に特化したバイブコーディングツール",
     )
 
     parser.add_argument(
@@ -69,5 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="SESSION_ID",
         help="Export a session to JSONL and exit",
+    )
+    parser.add_argument(
+        "--level",
+        type=str,
+        default=None,
+        choices=["beginner", "intermediate", "advanced"],
+        help="Override starting level (default: auto-detected from progress)",
     )
     return parser

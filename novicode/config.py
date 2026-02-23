@@ -1,4 +1,4 @@
-"""Configuration constants and mode definitions for RNNR_Coding."""
+"""Configuration constants and mode definitions for NoviCode."""
 
 from __future__ import annotations
 
@@ -186,7 +186,9 @@ _SYSTEM_PROMPTS: dict[Mode, str] = {
 }
 
 
-def build_mode_profile(mode: Mode) -> ModeProfile:
+def build_mode_profile(mode: Mode, level: str = "beginner") -> ModeProfile:
+    """Build a mode profile. The ``level`` parameter is stored for reference
+    but does not alter which imports or tools are available."""
     lang = MODE_LANGUAGE[mode]
     return ModeProfile(
         mode=mode,
@@ -204,10 +206,10 @@ DEFAULT_MAX_ITERATIONS = 50
 DEFAULT_MAX_FILES = 1
 DEFAULT_MAX_LINES = 300
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-WORKING_DIR = os.environ.get("RNNR_WORKDIR", os.getcwd())
+WORKING_DIR = os.environ.get("NOVICODE_WORKDIR", os.getcwd())
 
 # Scope description for refusal messages
-SCOPE_DESCRIPTION = """RNNR_Coding supports ONLY these domains:
+SCOPE_DESCRIPTION = """NoviCode supports ONLY these domains:
   1. Python fundamentals
   2. Py5 (Processing-style geometry & animation)
   3. scikit-learn (statistics & ML basics)

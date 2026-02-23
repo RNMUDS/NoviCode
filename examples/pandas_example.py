@@ -1,7 +1,7 @@
-"""Example: Using RNNR_Coding in pandas mode.
+"""Example: Using NoviCode in pandas mode.
 
 Start the agent:
-    rnnr --mode pandas
+    novicode --mode pandas
 
 Then try these prompts:
 

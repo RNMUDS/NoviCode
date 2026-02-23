@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 
-from rnnr.config import ModeProfile, DEFAULT_MAX_ITERATIONS, build_mode_profile
-from rnnr.llm_adapter import LLMAdapter, Message, LLMResponse, TOOL_DEFINITIONS
-from rnnr.tool_registry import ToolRegistry
-from rnnr.security_manager import SecurityManager
-from rnnr.policy_engine import PolicyEngine
-from rnnr.validator import Validator, correction_prompt
-from rnnr.session_manager import Session
-from rnnr.metrics import Metrics
+from novicode.config import ModeProfile, DEFAULT_MAX_ITERATIONS, build_mode_profile
+from novicode.llm_adapter import LLMAdapter, Message, LLMResponse, TOOL_DEFINITIONS
+from novicode.tool_registry import ToolRegistry
+from novicode.security_manager import SecurityManager
+from novicode.policy_engine import PolicyEngine
+from novicode.validator import Validator, correction_prompt, educational_feedback
+from novicode.session_manager import Session
+from novicode.metrics import Metrics
+from novicode.curriculum import extract_concepts
+from novicode.progress import ProgressTracker
 
 
 class AgentLoop:
@@ -26,6 +28,7 @@ class AgentLoop:
         policy: PolicyEngine,
         session: Session,
         metrics: Metrics,
+        progress: ProgressTracker | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         research: bool = False,
         debug: bool = False,
@@ -37,6 +40,7 @@ class AgentLoop:
         self.policy = policy
         self.session = session
         self.metrics = metrics
+        self.progress = progress
         self.max_iterations = max_iterations
         self.research = research
         self.debug = debug
@@ -46,6 +50,8 @@ class AgentLoop:
 
     def run_turn(self, user_input: str) -> str:
         """Process one user turn (may involve multiple LLM iterations)."""
+        self._educational_messages: list[str] = []
+
         # Scope check
         scope = self.policy.check_scope(user_input)
         if not scope.allowed:
@@ -74,6 +80,10 @@ class AgentLoop:
                     self._log("violation", {"violations": [v.__dict__ for v in validation.violations]})
                     self.metrics.record_violation()
                     self.metrics.record_retry()
+                    # Show educational feedback to user
+                    feedback = educational_feedback(validation.violations)
+                    if feedback:
+                        self._educational_messages.append(feedback)
                     correction = correction_prompt(validation.violations, self.profile.mode.value)
                     self.messages.append(Message(role="assistant", content=response.content))
                     self.messages.append(Message(role="user", content=correction))
@@ -81,6 +91,9 @@ class AgentLoop:
 
                 final_response = response.content
                 self.messages.append(Message(role="assistant", content=final_response))
+
+                # Track concepts from the response
+                self._track_concepts(response.content)
                 break
 
             # Execute tool calls
@@ -103,6 +116,12 @@ class AgentLoop:
             final_response = "(Max iterations reached. Please simplify your request.)"
 
         self.session.add("turn_complete", {"response_length": len(final_response)})
+
+        # Prepend any educational messages
+        if self._educational_messages:
+            edu_block = "\n\n".join(self._educational_messages)
+            final_response = edu_block + "\n\n---\n\n" + final_response
+
         return final_response
 
     def _execute_tools(self, response: LLMResponse) -> list[dict]:
@@ -122,6 +141,36 @@ class AgentLoop:
     def _log(self, entry_type: str, data: dict) -> None:
         if self.research:
             self.session.add(entry_type, data)
+
+    def _track_concepts(self, text: str) -> None:
+        """Extract concepts from LLM response and update progress."""
+        if self.progress is None:
+            return
+        concepts = extract_concepts(text, self.profile.mode)
+        if concepts:
+            self.progress.record_concepts(concepts)
+            self.metrics.concepts_taught.extend(concepts)
+            self._log("concepts", {"found": concepts})
+
+            # Check for level-up
+            new_level = self.progress.update_level()
+            if new_level is not None:
+                level_ja = {
+                    "beginner": "初級", "intermediate": "中級", "advanced": "上級"
+                }
+                msg = (
+                    f"🎉 レベルアップ！ {level_ja.get(new_level.value, new_level.value)} "
+                    f"に到達しました！"
+                )
+                self._educational_messages.append(msg)
+                self._log("level_up", {"new_level": new_level.value})
+
+                # Update system prompt for new level
+                self.policy.level = new_level
+                self.messages[0] = Message(
+                    role="system", content=self.policy.build_system_prompt()
+                )
+                self.progress.save()
 
     def restore_messages(self, messages: list[Message]) -> None:
         """Restore conversation history (for session resume)."""

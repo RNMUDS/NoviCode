@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 
-SESSIONS_DIR = Path.home() / ".rnnr_coding" / "sessions"
+SESSIONS_DIR = Path.home() / ".novicode" / "sessions"
 
 
 @dataclass
