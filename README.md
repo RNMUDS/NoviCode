@@ -1,26 +1,25 @@
-# RNNR_Coding
+# NoviCode
 
-**プログラミング学習のための、やさしいAIコーディングアシスタント**
+**プログラミング学習に特化したコーディングツール**
 
-RNNR_Coding は、あなたのパソコンだけで動くプログラミング学習用のAIです。
+NoviCode は、あなたのパソコンだけで動くプログラミング学習用の AI です。
 インターネットに接続しなくても使えます。
 [Ollama](https://ollama.ai) というソフトの上で動きます。
 
-ふつうのAIコーディングツールと違い、**学べる範囲をあえて絞っている**のが特徴です。
-「なんでもできる」のではなく、「決められた範囲を、安全に、しっかり学べる」ことを大切にしています。
+ふつうの AI チャットや AI コーディングツールとは違い、**段階的にステップバイステップで教える**のが特徴です。
+「電卓を作って」と言われても完成品を一括で出すのではなく、設計 → 最小コード → 動作確認 → 機能追加、と一歩ずつ進みます。
+使いながらプログラミングの基礎・セキュリティ・テスト・実運用の知識が自然に身につきます。
 
 ---
 
-## なぜ範囲を絞っているの？
+## NoviCode の特徴
 
-ふつうのAIコーディングツールには、学習で使うと困る点があります。
-
-- **言語がごちゃ混ぜになる** — 「グラフを作って」と頼むと、Python で返ってきたり JavaScript で返ってきたり。どちらで動かせばいいかわからなくなります
-- **習っていないものが出てくる** — まだ知らないライブラリや難しい書き方が突然出てきて混乱します
-- **記録が残らない** — 先生がどんなやりとりがあったか確認できません
-- **危ないことができてしまう** — ファイルの削除やソフトのインストールなど、意図しない操作が起きることがあります
-
-RNNR_Coding は、これらの問題をすべて防ぐように作られています。
+- **段階的な教育** — 完成品を一括出力せず、ステップバイステップで理解させながら構築
+- **レベルシステム** — 初級 → 中級 → 上級、学んだ概念を自動追跡してレベルアップ
+- **練習問題** — 各モード・レベルに合わせたチャレンジ問題で実力を確認
+- **セキュリティ教育** — 危険な操作がブロックされたとき「なぜ危険か」を解説
+- **言語の分離** — Python モードで HTML が出てきたり、その逆が起きたりしない
+- **ローカル動作** — すべてパソコンの中で完結。データが外部に送られない
 
 ---
 
@@ -39,18 +38,9 @@ RNNR_Coding は、これらの問題をすべて防ぐように作られてい�
 
 この6つ以外のお願い（たとえば「Javaで書いて」「Dockerを使って」など）には、丁寧にお断りします。
 
-### 言語の混在は起きません
-
-- Python系のモード（python_basic, py5, sklearn, pandas）では、HTMLやJavaScriptは一切生成されません
-- Web系のモード（aframe, threejs）では、Pythonコードは一切生成されません
-
-AIが間違えて別の言語を出力しようとしても、チェック機能が検出して自動的にやり直します。
-
 ---
 
 ## 使えるAIモデル
-
-RNNR_Coding が使えるモデルは2つだけです。
 
 | モデル | 必要なメモリ | 特徴 |
 |--------|------------|------|
@@ -63,7 +53,7 @@ RNNR_Coding が使えるモデルは2つだけです。
 
 ## はじめる前に必要なもの
 
-RNNR_Coding を動かすには、以下の3つが必要です。
+NoviCode を動かすには、以下の3つが必要です。
 はじめての方は、上から順番にセットアップしてください。
 
 | 必要なもの | 何をするもの？ | 確認コマンド |
@@ -80,7 +70,6 @@ RNNR_Coding を動かすには、以下の3つが必要です。
 
 ## ステップ 1: uv のインストール
 
-**Mac の場合：**
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
@@ -88,11 +77,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 または Homebrew でもインストールできます。
 ```bash
 brew install uv
-```
-
-**Linux の場合：**
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 インストールできたか確認しましょう。
@@ -113,15 +97,9 @@ git --version
 
 表示されない場合：
 
-**Mac の場合：**
 ```bash
 # 初回実行時に自動でインストールされます
 xcode-select --install
-```
-
-**Linux (Ubuntu) の場合：**
-```bash
-sudo apt install git
 ```
 
 ---
@@ -129,20 +107,13 @@ sudo apt install git
 ## ステップ 3: Ollama のインストール
 
 Ollama は、AIモデルをパソコンの中で動かすためのソフトです。
-これがないと RNNR_Coding は動きません。
-
-**Mac の場合：**
+これがないと NoviCode は動きません。
 
 https://ollama.com/download/mac からダウンロードして、アプリケーションフォルダに入れてください。
 
 または Homebrew でもインストールできます。
 ```bash
 brew install ollama
-```
-
-**Linux の場合：**
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 ### Ollama が動いているか確認する
@@ -164,10 +135,7 @@ ollama serve
 `ollama serve` を実行すると、そのターミナルは Ollama のサーバーとして使われるため、他のコマンドを入力できなくなります。
 **ターミナルをもう1つ開いて**、そちらで次のステップに進んでください。
 
-> **Mac でアプリ版を使っている場合：** Ollama.app を起動すれば自動で `ollama serve` が動きます。メニューバーにラマのアイコンが出ていればOKです。この場合、ターミナルを別に開く必要はありません。
-
-> **「Error: ollama server not responding」と出たら？**
-> Ollama がまだ起動していません。別のターミナルで `ollama serve` を実行するか、Mac の場合は Ollama.app を起動してください。
+> **アプリ版を使っている場合：** Ollama.app を起動すれば自動で `ollama serve` が動きます。メニューバーにラマのアイコンが出ていればOKです。この場合、ターミナルを別に開く必要はありません。
 
 ---
 
@@ -198,51 +166,20 @@ ollama pull qwen3-coder:30b
 
 > **「requires a newer version」というエラーが出たら？**
 >
-> `qwen3-coder:30b` は新しいモデル形式（MoE）を使っているため、**Ollama 0.3.15 以降**が必要です。
-> 古いバージョンだとダウンロードできません。
->
-> まず今のバージョンを確認してください。
-> ```bash
-> ollama --version
-> ```
->
-> 古い場合は、以下の手順でアップデートしてください。
->
-> **Mac の場合：**
+> `qwen3-coder:30b` は **Ollama 0.3.15 以降**が必要です。
 > https://ollama.com/download からアプリを再ダウンロードして上書きインストールしてください。
 > または Homebrew なら：
 > ```bash
 > brew upgrade ollama
 > ```
->
-> **Linux の場合：**
-> ```bash
-> curl -fsSL https://ollama.com/install.sh | sh
-> ```
->
-> アップデート後、Ollama を再起動してからもう一度 pull してください。
-> ```bash
-> pkill ollama
-> ollama serve   # 別のターミナルで
-> ollama pull qwen3-coder:30b
-> ```
-
-> **メモリ 16GB のパソコンで 30b モデルは動く？**
->
-> `qwen3-coder:30b` は MoE（Mixture of Experts）という仕組みで、全体は 30B ですが実際に動くのは 3.3B 分だけです。
-> それでも Q4 量子化で約 12〜15GB のメモリを使うため、16GB のパソコンではギリギリです。
-> 動きはしますが、スワップ（ディスクへの退避）が発生して速度が遅くなることがあります（5〜15 トークン/秒）。
->
-> 16GB のパソコンでは `qwen3:8b` のほうが快適に動きます。
-> `qwen3-coder:30b` は **24GB 以上のメモリがあるパソコン**で使うのがおすすめです。
 
 ---
 
-## ステップ 5: RNNR_Coding のインストール
+## ステップ 5: NoviCode のインストール
 
 ```bash
-git clone https://github.com/RNMUDS/RNNR_Coding.git
-cd RNNR_Coding
+git clone https://github.com/RNMUDS/NoviCode.git
+cd NoviCode
 uv sync
 ```
 
@@ -259,7 +196,7 @@ uv sync
 `uv run` をつけてコマンドを実行します。
 
 ```bash
-uv run rnnr --mode python_basic
+uv run novicode --mode python_basic
 ```
 
 > **`uv run` って何？**
@@ -267,7 +204,7 @@ uv run rnnr --mode python_basic
 > 毎回つけるのが面倒なら、以下で仮想環境に入ってから使うこともできます。
 > ```bash
 > source .venv/bin/activate
-> rnnr --mode python_basic
+> novicode --mode python_basic
 > ```
 
 ---
@@ -278,8 +215,6 @@ uv run rnnr --mode python_basic
 |------|-----------|
 | `ollama: command not found` | Ollama がインストールされていません。ステップ3を確認してください |
 | `Error: ollama server not responding` | Ollama が起動していません。`ollama serve` を実行するか、Ollama.app を起動してください |
-| `requires a newer version of Ollama` | Ollama のバージョンが古いです。ステップ4の「アップデート手順」を確認してください |
-| `Warning: client version is newer` | Ollama のクライアントとサーバーのバージョンが合っていません。`pkill ollama` してから `ollama serve` を再実行してください |
 | `uv: command not found` | uv がインストールされていません。ステップ1を確認してください |
 | `git: command not found` | Git がインストールされていません。ステップ2を確認してください |
 | モデルのダウンロードが遅い | 初回は数GBあるので時間がかかります。Wi-Fi環境での実行をおすすめします |
@@ -293,16 +228,19 @@ uv run rnnr --mode python_basic
 
 ```bash
 # Pythonの基礎を学ぶ
-rnnr --mode python_basic
+novicode --mode python_basic
 
 # データ分析を学ぶ（学習ログあり）
-rnnr --mode pandas --research
+novicode --mode pandas --research
 
 # 3D（A-Frame）を学ぶ
-rnnr --mode aframe
+novicode --mode aframe
 
 # モデルを指定して起動
-rnnr --mode sklearn --model qwen3-coder:30b
+novicode --mode sklearn --model qwen3-coder:30b
+
+# レベルを指定して起動
+novicode --mode python_basic --level intermediate
 ```
 
 ### 会話中に使えるコマンド
@@ -312,10 +250,14 @@ rnnr --mode sklearn --model qwen3-coder:30b
 | `/help` | コマンド一覧を表示 |
 | `/exit` | 終了する |
 | `/clear` | 会話履歴をクリア |
+| `/progress` | 学習進捗を表示（習得済み概念の一覧） |
+| `/level` | 現在のレベルを表示 |
+| `/challenge` | 今のレベルに合った練習問題を出題 |
+| `/hint` | 練習問題のヒントを表示 |
 | `/metrics` | 学習の統計を表示 |
-| `/trace` | 直前のAIとのやりとりを表示 |
 | `/status` | 今のセッション情報を表示 |
-| `/save` | セッションを保存する |
+| `/save` | セッションと進捗を保存する |
+| `/trace` | 直前のAIとのやりとりを表示 |
 
 ### 起動オプション一覧
 
@@ -323,6 +265,7 @@ rnnr --mode sklearn --model qwen3-coder:30b
 |-----------|------|
 | `--mode` | **必須。** 学習モードを選ぶ（上の6つから1つ） |
 | `--model` | 使うモデルを指定（省略すると自動選択） |
+| `--level` | 開始レベルを指定（beginner / intermediate / advanced） |
 | `--safe-mode` | より安全な制限を有効にする |
 | `--debug` | デバッグ情報を表示する |
 | `--max-iterations` | AIの最大思考回数（初期値: 50） |
@@ -333,9 +276,58 @@ rnnr --mode sklearn --model qwen3-coder:30b
 
 ---
 
+## 学習システム
+
+### レベルと概念の追跡
+
+NoviCode は、AIの回答から「何を学んだか」を自動的に検出し、記録します。
+
+- 各モードに **初級・中級・上級** の3レベル
+- レベルごとに学ぶべき **概念リスト** が定義されている
+- ある概念が3回以上登場すると **習得済み** とみなす
+- 現レベルの概念を60%以上習得すると **自動的にレベルアップ**
+
+例えば `python_basic` モードの初級では、変数・型・print・条件分岐・ループ・関数・リスト を学びます。
+
+進捗は `~/.novicode/progress/` に自動保存され、次回の起動時に引き継がれます。
+
+### 段階的な教え方
+
+NoviCode の AI は、完成品を一度に出しません。
+
+```
+ユーザー: 「電卓を作って」
+
+AI: 「電卓を作りましょう。まず設計から考えます。
+
+【ステップ1: 設計】
+電卓に必要な機能は何でしょう？
+- 足し算、引き算、掛け算、割り算
+- ユーザーからの入力受付
+- 結果の表示
+
+まず、もっとも基本的な部分 — 2つの数字を受け取って足し算する —
+から始めます。」
+
+→ ステップ1のコードだけ書く → 動かさせる → 次のステップへ
+```
+
+### セキュリティ教育
+
+危険な操作がブロックされたとき、ただ「ダメ」と言うだけでなく **なぜ危険かを教えます**。
+
+```
+🔒 【セキュリティ学習】
+sudo は管理者権限でコマンドを実行します。
+実際の開発では「最小権限の原則」が重要です。
+→ プログラムには必要最小限の権限だけを与えましょう。
+```
+
+---
+
 ## 安全のしくみ
 
-RNNR_Coding は、学習者が安心して使えるようにたくさんの安全対策をしています。
+NoviCode は、学習者が安心して使えるようにたくさんの安全対策をしています。
 
 ### やってはいけないことを自動でブロック
 
@@ -359,7 +351,7 @@ RNNR_Coding は、学習者が安心して使えるようにたくさんの安�
 `--research` をつけて起動すると、すべてのやりとりが記録されます。
 
 ```bash
-rnnr --mode python_basic --research
+novicode --mode python_basic --research
 ```
 
 記録される内容：
@@ -368,16 +360,17 @@ rnnr --mode python_basic --research
 - AIの回答
 - バリデーション違反（言語混在など）
 - ツールの使用状況
+- 学んだ概念
 - 思考回数と時間
 
 ### データの書き出し
 
 ```bash
 # セッション一覧を見る
-rnnr --mode python_basic --list-sessions
+novicode --mode python_basic --list-sessions
 
 # 特定のセッションを書き出す
-rnnr --mode python_basic --export-session abc123def456
+novicode --mode python_basic --export-session abc123def456
 ```
 
 JSONL形式で出力されるので、pandas や jq で分析できます。
@@ -387,15 +380,18 @@ JSONL形式で出力されるので、pandas や jq で分析できます。
 ## プロジェクト構成
 
 ```
-rnnr/
+novicode/
 ├── main.py              # メインの起動ファイル
 ├── cli.py               # コマンドライン引数の処理
 ├── agent_loop.py        # AIとの対話ループ
 ├── llm_adapter.py       # Ollamaとの通信
 ├── tool_registry.py     # ツールの管理と実行
-├── security_manager.py  # 安全チェック（コマンド・パス）
-├── policy_engine.py     # モード別のルール管理
-├── validator.py         # 出力の検証（言語分離など）
+├── security_manager.py  # 安全チェック（コマンド・パス）+ セキュリティ教育
+├── policy_engine.py     # モード別のルール管理 + 教育プロンプト合成
+├── validator.py         # 出力の検証（言語分離など）+ 教育フィードバック
+├── curriculum.py        # レベル定義・概念カタログ・教育プロンプト
+├── progress.py          # 学習進捗の追跡・永続化
+├── challenges.py        # 練習問題（36問）
 ├── session_manager.py   # セッションの保存・再開
 ├── metrics.py           # 統計の記録
 ├── config.py            # 設定値・定数
@@ -412,16 +408,16 @@ rnnr/
 
 ## ふつうのAIツールとのちがい
 
-| 比較ポイント | ふつうのAIツール | RNNR_Coding |
-|------------|----------------|-------------|
-| 対応範囲 | なんでもOK | 6つの学習分野だけ |
+| 比較ポイント | ふつうのAIツール | NoviCode |
+|------------|----------------|----------|
+| 教え方 | 完成品を一括出力 | ステップバイステップで段階的に |
+| 学習追跡 | なし | 概念の習得を自動追跡・レベルアップ |
+| 練習問題 | なし | モード・レベルに合った問題を出題 |
+| セキュリティ教育 | なし | 危険な操作をブロック時に理由を解説 |
 | 動く場所 | クラウド（ネット必要） | 自分のパソコンだけ |
 | 言語の混在 | よくある | 起きない |
 | ライブラリ制限 | なし | モードごとに許可制 |
-| ネット通信 | できる | できない |
-| パッケージ追加 | できる | できない |
 | 学習ログ | なし or バラバラ | JSONL形式で統一 |
-| 再現性 | なし | あり |
 
 ---
 
