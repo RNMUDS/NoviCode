@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import urllib.request
 import urllib.error
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from novicode.config import OLLAMA_BASE_URL, SUPPORTED_MODELS
@@ -135,7 +136,7 @@ class LLMAdapter:
         messages: list[Message],
         tools: list[dict] | None = None,
     ) -> LLMResponse:
-        """Send a chat completion request to Ollama."""
+        """Send a chat completion request to Ollama (non-streaming)."""
         payload = {
             "model": self.model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
@@ -161,6 +162,83 @@ class LLMAdapter:
             ) from exc
 
         return self._parse_response(data)
+
+    def chat_stream(
+        self,
+        messages: list[Message],
+        tools: list[dict] | None = None,
+    ) -> Iterator[str | LLMResponse]:
+        """Stream a chat completion from Ollama.
+
+        Yields:
+            str: content chunks as they arrive
+            LLMResponse: final complete response (always the last item)
+        """
+        payload = {
+            "model": self.model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+
+        body = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=300)
+        except urllib.error.URLError as exc:
+            raise ConnectionError(
+                f"Cannot reach Ollama at {self.base_url}. "
+                f"Ensure Ollama is running with '{self.model}' loaded."
+            ) from exc
+
+        accumulated_content = ""
+        tool_calls: list[ToolCall] = []
+        last_data: dict = {}
+
+        try:
+            for raw_line in resp:
+                line = raw_line.decode().strip()
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                last_data = data
+                msg = data.get("message", {})
+                chunk = msg.get("content", "")
+
+                if chunk:
+                    accumulated_content += chunk
+                    yield chunk
+
+                # Tool calls come in the final message
+                for tc in msg.get("tool_calls", []):
+                    func = tc.get("function", {})
+                    name = func.get("name", "")
+                    args = func.get("arguments", {})
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            args = {"raw": args}
+                    tool_calls.append(ToolCall(name=name, arguments=args))
+        finally:
+            resp.close()
+
+        # Yield the final complete response
+        yield LLMResponse(
+            content=accumulated_content,
+            tool_calls=tool_calls,
+            raw=last_data,
+        )
 
     def _parse_response(self, data: dict) -> LLMResponse:
         msg = data.get("message", {})

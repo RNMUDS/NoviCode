@@ -230,9 +230,14 @@ def main() -> None:
                     print("先に /challenge でチャレンジを取得してください。")
                 continue
 
-            # Run agent turn
-            response = loop.run_turn(user_input)
-            print(f"\nAssistant> {response}\n")
+            # Run agent turn (streaming)
+            sys.stdout.write("\nAssistant> ")
+            sys.stdout.flush()
+            for chunk in loop.run_turn_stream(user_input):
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+            sys.stdout.write("\n\n")
+            sys.stdout.flush()
 
     except KeyboardInterrupt:
         print("\nInterrupted.")
