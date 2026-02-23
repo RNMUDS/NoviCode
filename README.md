@@ -175,11 +175,6 @@ Ollama が起動している状態で、AIモデルをダウンロードしま�
 ollama pull qwen3:8b
 ```
 
-> メモリが 32GB 以上あるパソコンでは、より高性能なモデルも使えます。
-> ```bash
-> ollama pull qwen3-coder:30b
-> ```
-
 ダウンロードが終わったら、正しく入ったか確認しましょう。
 
 ```bash
@@ -187,6 +182,54 @@ ollama list
 ```
 
 `qwen3:8b` が一覧に表示されていればOKです。
+
+### メモリに余裕がある場合（32GB 以上）
+
+より高性能な `qwen3-coder:30b` も使えます。
+
+```bash
+ollama pull qwen3-coder:30b
+```
+
+> **「requires a newer version」というエラーが出たら？**
+>
+> `qwen3-coder:30b` は新しいモデル形式（MoE）を使っているため、**Ollama 0.3.15 以降**が必要です。
+> 古いバージョンだとダウンロードできません。
+>
+> まず今のバージョンを確認してください。
+> ```bash
+> ollama --version
+> ```
+>
+> 古い場合は、以下の手順でアップデートしてください。
+>
+> **Mac の場合：**
+> https://ollama.com/download からアプリを再ダウンロードして上書きインストールしてください。
+> または Homebrew なら：
+> ```bash
+> brew upgrade ollama
+> ```
+>
+> **Linux の場合：**
+> ```bash
+> curl -fsSL https://ollama.com/install.sh | sh
+> ```
+>
+> アップデート後、Ollama を再起動してからもう一度 pull してください。
+> ```bash
+> pkill ollama
+> ollama serve   # 別のターミナルで
+> ollama pull qwen3-coder:30b
+> ```
+
+> **メモリ 16GB のパソコンで 30b モデルは動く？**
+>
+> `qwen3-coder:30b` は MoE（Mixture of Experts）という仕組みで、全体は 30B ですが実際に動くのは 3.3B 分だけです。
+> それでも Q4 量子化で約 12〜15GB のメモリを使うため、16GB のパソコンではギリギリです。
+> 動きはしますが、スワップ（ディスクへの退避）が発生して速度が遅くなることがあります（5〜15 トークン/秒）。
+>
+> 16GB のパソコンでは `qwen3:8b` のほうが快適に動きます。
+> `qwen3-coder:30b` は **24GB 以上のメモリがあるパソコン**で使うのがおすすめです。
 
 ---
 
@@ -208,10 +251,13 @@ pip install -e .
 |------|-----------|
 | `ollama: command not found` | Ollama がインストールされていません。ステップ3を確認してください |
 | `Error: ollama server not responding` | Ollama が起動していません。`ollama serve` を実行するか、Ollama.app を起動してください |
+| `requires a newer version of Ollama` | Ollama のバージョンが古いです。ステップ4の「アップデート手順」を確認してください |
+| `Warning: client version is newer` | Ollama のクライアントとサーバーのバージョンが合っていません。`pkill ollama` してから `ollama serve` を再実行してください |
 | `python3: command not found` | Python がインストールされていません。ステップ1を確認してください |
 | `git: command not found` | Git がインストールされていません。ステップ2を確認してください |
 | `pip: command not found` | `pip3 install -e .` を試してください |
 | モデルのダウンロードが遅い | 初回は数GBあるので時間がかかります。Wi-Fi環境での実行をおすすめします |
+| 30b モデルが遅い・固まる | メモリ不足の可能性があります。`qwen3:8b` に切り替えてください |
 
 ---
 
