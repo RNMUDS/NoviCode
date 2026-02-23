@@ -1,0 +1,138 @@
+"""Agent loop — orchestrates user input, LLM calls, tool execution, and validation."""
+
+from __future__ import annotations
+
+import json
+
+from rnnr.config import ModeProfile, DEFAULT_MAX_ITERATIONS, build_mode_profile
+from rnnr.llm_adapter import LLMAdapter, Message, LLMResponse, TOOL_DEFINITIONS
+from rnnr.tool_registry import ToolRegistry
+from rnnr.security_manager import SecurityManager
+from rnnr.policy_engine import PolicyEngine
+from rnnr.validator import Validator, correction_prompt
+from rnnr.session_manager import Session
+from rnnr.metrics import Metrics
+
+
+class AgentLoop:
+    """Main agentic loop: prompt → LLM → tools → validate → iterate."""
+
+    def __init__(
+        self,
+        llm: LLMAdapter,
+        profile: ModeProfile,
+        tools: ToolRegistry,
+        validator: Validator,
+        policy: PolicyEngine,
+        session: Session,
+        metrics: Metrics,
+        max_iterations: int = DEFAULT_MAX_ITERATIONS,
+        research: bool = False,
+        debug: bool = False,
+    ) -> None:
+        self.llm = llm
+        self.profile = profile
+        self.tools = tools
+        self.validator = validator
+        self.policy = policy
+        self.session = session
+        self.metrics = metrics
+        self.max_iterations = max_iterations
+        self.research = research
+        self.debug = debug
+        self.messages: list[Message] = [
+            Message(role="system", content=policy.build_system_prompt())
+        ]
+
+    def run_turn(self, user_input: str) -> str:
+        """Process one user turn (may involve multiple LLM iterations)."""
+        # Scope check
+        scope = self.policy.check_scope(user_input)
+        if not scope.allowed:
+            self._log("scope_rejection", {"input": user_input, "reason": scope.reason})
+            return f"Sorry, this request is outside the supported scope.\n\n{scope.reason}"
+
+        self.messages.append(Message(role="user", content=user_input))
+        self._log("user", {"content": user_input})
+
+        final_response = ""
+        for i in range(self.max_iterations):
+            self.metrics.increment_iteration()
+
+            # Call LLM
+            tool_defs = self._filtered_tool_defs()
+            response = self.llm.chat(self.messages, tools=tool_defs)
+            self._log("llm_response", {"content": response.content, "tools": len(response.tool_calls)})
+
+            if self.debug:
+                print(f"  [iter {i+1}] content={response.content[:80]}... tools={len(response.tool_calls)}")
+
+            # No tool calls → validate and return text
+            if not response.tool_calls:
+                validation = self.validator.validate(response.content, "response.py")
+                if not validation.valid:
+                    self._log("violation", {"violations": [v.__dict__ for v in validation.violations]})
+                    self.metrics.record_violation()
+                    self.metrics.record_retry()
+                    correction = correction_prompt(validation.violations, self.profile.mode.value)
+                    self.messages.append(Message(role="assistant", content=response.content))
+                    self.messages.append(Message(role="user", content=correction))
+                    continue
+
+                final_response = response.content
+                self.messages.append(Message(role="assistant", content=final_response))
+                break
+
+            # Execute tool calls
+            self.messages.append(Message(role="assistant", content=response.content))
+            tool_results = self._execute_tools(response)
+            tool_summary = json.dumps(tool_results, ensure_ascii=False)
+            self.messages.append(Message(role="user", content=f"Tool results:\n{tool_summary}"))
+
+            # Validate any write/edit output
+            for tc, result in zip(response.tool_calls, tool_results):
+                if tc.name in ("write", "edit") and "error" not in result:
+                    content = tc.arguments.get("content", "")
+                    path = tc.arguments.get("path", "")
+                    if content:
+                        vr = self.validator.validate(content, path)
+                        if not vr.valid:
+                            self._log("violation", {"violations": [v.__dict__ for v in vr.violations]})
+                            self.metrics.record_violation()
+        else:
+            final_response = "(Max iterations reached. Please simplify your request.)"
+
+        self.session.add("turn_complete", {"response_length": len(final_response)})
+        return final_response
+
+    def _execute_tools(self, response: LLMResponse) -> list[dict]:
+        results = []
+        for tc in response.tool_calls:
+            self.metrics.record_tool_call(tc.name)
+            self._log("tool_call", {"name": tc.name, "args": tc.arguments})
+            result = self.tools.execute(tc.name, tc.arguments)
+            self._log("tool_result", {"name": tc.name, "result": _truncate(result)})
+            results.append(result)
+        return results
+
+    def _filtered_tool_defs(self) -> list[dict]:
+        allowed = self.tools.available_tools()
+        return [td for td in TOOL_DEFINITIONS if td["function"]["name"] in allowed]
+
+    def _log(self, entry_type: str, data: dict) -> None:
+        if self.research:
+            self.session.add(entry_type, data)
+
+    def restore_messages(self, messages: list[Message]) -> None:
+        """Restore conversation history (for session resume)."""
+        self.messages = messages
+
+
+def _truncate(d: dict, limit: int = 500) -> dict:
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, str) and len(v) > limit:
+            out[k] = v[:limit] + "..."
+        else:
+            out[k] = v
+    return out

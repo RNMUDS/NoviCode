@@ -1,0 +1,99 @@
+"""Policy engine — enforces mode-specific rules on tool calls and content."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from rnnr.config import (
+    SCOPE_DESCRIPTION,
+    ModeProfile,
+    LanguageFamily,
+)
+
+
+@dataclass(frozen=True)
+class PolicyVerdict:
+    allowed: bool
+    reason: str = ""
+
+
+class PolicyEngine:
+    """Evaluates requests and tool calls against the active mode profile."""
+
+    def __init__(self, profile: ModeProfile) -> None:
+        self.profile = profile
+
+    def check_tool_allowed(self, tool_name: str) -> PolicyVerdict:
+        """Is this tool permitted in the current mode?"""
+        if tool_name not in self.profile.allowed_tools:
+            return PolicyVerdict(
+                allowed=False,
+                reason=(
+                    f"Tool '{tool_name}' is not allowed in "
+                    f"mode '{self.profile.mode.value}'. "
+                    f"Allowed: {', '.join(sorted(self.profile.allowed_tools))}"
+                ),
+            )
+        return PolicyVerdict(allowed=True)
+
+    def check_file_extension(self, filename: str) -> PolicyVerdict:
+        """Is this file extension permitted for the current language family?"""
+        ext = _get_extension(filename)
+        if ext and ext not in self.profile.allowed_extensions:
+            return PolicyVerdict(
+                allowed=False,
+                reason=(
+                    f"Extension '{ext}' is forbidden in mode "
+                    f"'{self.profile.mode.value}'. "
+                    f"Allowed: {', '.join(sorted(self.profile.allowed_extensions))}"
+                ),
+            )
+        return PolicyVerdict(allowed=True)
+
+    def check_scope(self, user_message: str) -> PolicyVerdict:
+        """Basic keyword heuristic to reject clearly out-of-scope requests."""
+        lowered = user_message.lower()
+        out_of_scope_keywords = [
+            "rust", "golang", "kotlin", "swift", "c++",
+            "c#", "ruby", "php", "perl", "scala", "haskell",
+            "elixir", "dart", "flutter", "react native",
+            "terraform", "kubernetes", "docker", "ansible",
+            "blockchain", "solidity", "web3",
+        ]
+        # "java" needs special handling: must not match "javascript"
+        import re
+        if re.search(r"java(?!script)", lowered):
+            return PolicyVerdict(
+                allowed=False,
+                reason=SCOPE_DESCRIPTION,
+            )
+        for kw in out_of_scope_keywords:
+            if kw in lowered:
+                return PolicyVerdict(
+                    allowed=False,
+                    reason=SCOPE_DESCRIPTION,
+                )
+        return PolicyVerdict(allowed=True)
+
+    def build_system_prompt(self) -> str:
+        """Return the full system prompt for the active mode."""
+        base = self.profile.system_prompt
+        constraint = (
+            "\n\nIMPORTANT CONSTRAINTS:\n"
+            "- You must ONLY generate code in the permitted language for this mode.\n"
+            "- Do NOT import libraries outside the allowed set.\n"
+            "- Do NOT generate files with disallowed extensions.\n"
+            "- Keep output concise: max 300 lines, 1 file per response.\n"
+            "- Do NOT make network requests or install packages.\n"
+            f"\n{SCOPE_DESCRIPTION}"
+        )
+        return base + constraint
+
+
+def _get_extension(filename: str) -> str:
+    """Extract file extension including the dot."""
+    dot = filename.rfind(".")
+    if dot == -1:
+        return ""
+    return filename[dot:]
