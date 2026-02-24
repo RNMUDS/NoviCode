@@ -69,6 +69,7 @@ class Mode(str, Enum):
     PY5 = "py5"
     SKLEARN = "sklearn"
     PANDAS = "pandas"
+    WEB_BASIC = "web_basic"
     AFRAME = "aframe"
     THREEJS = "threejs"
 
@@ -83,6 +84,7 @@ MODE_LANGUAGE: dict[Mode, LanguageFamily] = {
     Mode.PY5: LanguageFamily.PYTHON,
     Mode.SKLEARN: LanguageFamily.PYTHON,
     Mode.PANDAS: LanguageFamily.PYTHON,
+    Mode.WEB_BASIC: LanguageFamily.WEB,
     Mode.AFRAME: LanguageFamily.WEB,
     Mode.THREEJS: LanguageFamily.WEB,
 }
@@ -113,8 +115,9 @@ ALLOWED_IMPORTS: dict[Mode, FrozenSet[str]] = {
         "copy", "json", "csv", "pathlib", "os.path", "statistics",
         "warnings", "io",
     }),
-    Mode.AFRAME: frozenset(),   # no Python imports — web mode
-    Mode.THREEJS: frozenset(),  # no Python imports — web mode
+    Mode.WEB_BASIC: frozenset(),  # no Python imports — web mode
+    Mode.AFRAME: frozenset(),     # no Python imports — web mode
+    Mode.THREEJS: frozenset(),    # no Python imports — web mode
 }
 
 
@@ -171,6 +174,12 @@ _SYSTEM_PROMPTS: dict[Mode, str] = {
         "Do NOT generate HTML, JavaScript, or CSS. "
         "Focus on data loading, cleaning, tables, charts, and exploratory analysis."
     ),
+    Mode.WEB_BASIC: (
+        "You are a web development tutor. "
+        "Generate HTML, CSS, and JavaScript code for web applications. "
+        "Do NOT generate Python code. "
+        "Focus on DOM manipulation, events, forms, and responsive design."
+    ),
     Mode.AFRAME: (
         "You are a WebXR tutor using A-Frame. "
         "Generate ONLY HTML and JavaScript code using the A-Frame framework. "
@@ -214,7 +223,8 @@ SCOPE_DESCRIPTION = """NoviCode supports ONLY these domains:
   2. Py5 (Processing-style geometry & animation)
   3. scikit-learn (statistics & ML basics)
   4. pandas + matplotlib + seaborn (data analysis)
-  5. HTML + JavaScript with A-Frame (WebXR 3D)
-  6. HTML + JavaScript with Three.js (3D graphics)
+  5. HTML + CSS + JavaScript (Web basics)
+  6. HTML + JavaScript with A-Frame (WebXR 3D)
+  7. HTML + JavaScript with Three.js (3D graphics)
 
 Requests outside these domains cannot be fulfilled."""

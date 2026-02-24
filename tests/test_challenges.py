@@ -16,7 +16,7 @@ from novicode.challenges import (
 
 class TestChallengeDefinitions:
     def test_total_challenge_count(self):
-        assert len(CHALLENGES) == 36
+        assert len(CHALLENGES) == 42
 
     def test_six_per_mode(self):
         for mode in Mode:

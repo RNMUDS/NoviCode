@@ -19,7 +19,7 @@ class Challenge:
     hint: str
 
 
-# ── Challenge definitions (6 per mode × 6 modes = 36) ─────────────
+# ── Challenge definitions (6 per mode × 7 modes = 42) ─────────────
 
 CHALLENGES: list[Challenge] = [
     # ── python_basic ──────────────────────────────────────────
@@ -243,6 +243,62 @@ CHALLENGES: list[Challenge] = [
             "メモリ効率の良い集計を行ってください。"
         ),
         hint="pd.read_csv('file.csv', chunksize=1000) でイテレータとして読み込みます。",
+    ),
+
+    # ── web_basic ─────────────────────────────────────────────
+    Challenge(
+        id="wb_b1", mode=Mode.WEB_BASIC, level=Level.BEGINNER,
+        title="自己紹介ページ",
+        description=(
+            "HTML と CSS で自己紹介ページを作ってください。\n"
+            "名前・趣味・好きなものをリストで表示し、背景色や文字色を設定します。"
+        ),
+        hint="<h1> でタイトル、<ul><li> でリスト、CSS の background-color と color で色を設定します。",
+    ),
+    Challenge(
+        id="wb_b2", mode=Mode.WEB_BASIC, level=Level.BEGINNER,
+        title="カウンターアプリ",
+        description=(
+            "ボタンを押すと数字が増減するカウンターを作ってください。\n"
+            "+ボタン、-ボタン、リセットボタンを配置します。"
+        ),
+        hint="getElementById で表示要素を取得し、addEventListener でボタンにクリックイベントを設定します。",
+    ),
+    Challenge(
+        id="wb_i1", mode=Mode.WEB_BASIC, level=Level.INTERMEDIATE,
+        title="ToDoリスト",
+        description=(
+            "タスクの追加・完了・削除ができる ToDo リストを作ってください。\n"
+            "localStorage でデータを保存し、ページを再読み込みしても残るようにします。"
+        ),
+        hint="フォームの submit イベントでタスクを追加し、localStorage.setItem で JSON 保存します。",
+    ),
+    Challenge(
+        id="wb_i2", mode=Mode.WEB_BASIC, level=Level.INTERMEDIATE,
+        title="電卓Webアプリ",
+        description=(
+            "四則演算ができる電卓を HTML + CSS + JavaScript で作ってください。\n"
+            "ボタンで数字と演算子を入力し、結果を表示します。"
+        ),
+        hint="Flexbox でボタンを格子状に配置し、クリックイベントで入力を組み立てて eval() や自前の計算で結果を出します。",
+    ),
+    Challenge(
+        id="wb_a1", mode=Mode.WEB_BASIC, level=Level.ADVANCED,
+        title="天気表示アプリ（モック）",
+        description=(
+            "都市名を入力すると天気情報を表示するアプリを作ってください。\n"
+            "実際の API の代わりにモックデータを使い、async/await で非同期処理を練習します。"
+        ),
+        hint="fetch の代わりに Promise を返すモック関数を作り、async/await で呼び出します。try/catch でエラー処理します。",
+    ),
+    Challenge(
+        id="wb_a2", mode=Mode.WEB_BASIC, level=Level.ADVANCED,
+        title="SPA風タブ切り替え",
+        description=(
+            "ページ遷移なしでコンテンツを切り替えるタブ UI を作ってください。\n"
+            "CSS Grid でレイアウトし、CSS アニメーションで切り替え効果を付けます。"
+        ),
+        hint="タブクリックで表示/非表示を切り替え、CSS transition で滑らかに変化させます。CSS Grid でレイアウトを組みます。",
     ),
 
     # ── aframe ────────────────────────────────────────────────

@@ -93,6 +93,20 @@ CONCEPT_CATALOGS: dict[Mode, ConceptCatalog] = {
             "可視化カスタマイズ", "データパイプライン",
         }),
     ),
+    Mode.WEB_BASIC: ConceptCatalog(
+        beginner=frozenset({
+            "HTML構造", "CSS基礎", "JavaScript基礎", "DOM操作",
+            "イベント", "フォーム", "ボタン",
+        }),
+        intermediate=frozenset({
+            "Flexbox", "レスポンシブ", "localStorage", "fetch API",
+            "テンプレートリテラル", "配列操作",
+        }),
+        advanced=frozenset({
+            "CSS Grid", "CSSアニメーション", "Web Components",
+            "非同期処理", "エラーハンドリング",
+        }),
+    ),
     Mode.AFRAME: ConceptCatalog(
         beginner=frozenset({
             "シーン構成", "エンティティ", "ジオメトリ",
@@ -202,6 +216,27 @@ _CONCEPT_PATTERNS: dict[str, list[str]] = {
     "大規模データ": [r"大規模", r"chunk"],
     "可視化カスタマイズ": [r"カスタマイズ", r"凡例", r"軸ラベル"],
     "データパイプライン": [r"データパイプライン"],
+    # web_basic - beginner
+    "HTML構造": [r"HTML", r"<html", r"<head", r"<body", r"<!DOCTYPE"],
+    "CSS基礎": [r"CSS", r"スタイル", r"style"],
+    "JavaScript基礎": [r"JavaScript", r"<script", r"\blet\b", r"\bconst\b", r"\bvar\b"],
+    "DOM操作": [r"DOM", r"getElementById", r"querySelector", r"innerHTML", r"textContent"],
+    "イベント": [r"イベント", r"event"],
+    "フォーム": [r"フォーム", r"<form", r"<input", r"\bsubmit\b"],
+    "ボタン": [r"ボタン", r"<button", r"\bclick\b"],
+    # web_basic - intermediate
+    "Flexbox": [r"Flexbox", r"flex", r"display:\s*flex"],
+    "レスポンシブ": [r"レスポンシブ", r"media\s*query", r"@media"],
+    "localStorage": [r"localStorage", r"setItem", r"getItem"],
+    "fetch API": [r"\bfetch\s*\(", r"fetch API"],
+    "テンプレートリテラル": [r"テンプレートリテラル", r"テンプレート文字列", r"`\$\{"],
+    "配列操作": [r"配列操作", r"\.map\s*\(", r"\.filter\s*\(", r"\.reduce\s*\("],
+    # web_basic - advanced
+    "CSS Grid": [r"CSS Grid", r"grid", r"display:\s*grid"],
+    "CSSアニメーション": [r"CSSアニメーション", r"@keyframes", r"transition", r"animation"],
+    "Web Components": [r"Web Components", r"customElements", r"shadowRoot", r"Shadow DOM"],
+    "非同期処理": [r"非同期", r"\basync\b", r"\bawait\b", r"Promise"],
+    "エラーハンドリング": [r"エラーハンドリング", r"\btry\b.*\bcatch\b", r"\.catch\s*\("],
     # aframe
     "シーン構成": [r"シーン", r"a-scene"],
     "エンティティ": [r"エンティティ", r"a-entity"],
@@ -358,6 +393,7 @@ _MODE_DOMAINS: dict[Mode, str] = {
     Mode.PY5: "Py5（Processing for Python）を使ったクリエイティブコーディング",
     Mode.SKLEARN: "scikit-learn を使った機械学習",
     Mode.PANDAS: "pandas / matplotlib / seaborn を使ったデータ分析",
+    Mode.WEB_BASIC: "HTML / CSS / JavaScript を使ったWeb開発",
     Mode.AFRAME: "A-Frame を使った WebXR / 3D",
     Mode.THREEJS: "Three.js を使った 3D グラフィックス",
 }
