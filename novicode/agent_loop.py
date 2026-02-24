@@ -27,6 +27,19 @@ _TOOL_NUDGE = (
     "コードをテキストとして表示するのではなく、write 関数を呼び出してください。"
 )
 
+_TOOL_NUDGE_AFTER_WRITE = (
+    "コードは既に write ツールでファイルに保存されています。\n"
+    "返答にコードを書く必要はありません。マークダウンのコードブロック（```）は使わないでください。\n"
+    "コードの新しい部分の説明（箇条書き2〜3個）と"
+    "「このコードを実行すると、どんな結果になると思いますか？」の質問だけを書いてください。"
+)
+
+_WRITE_TOOL_REMINDER = (
+    "\n\n【重要】コードはファイルに保存済みです。"
+    "返答にコードを書かないでください（``` は禁止）。"
+    "コードの説明（箇条書き2〜3個）と予測質問だけを書いてください。"
+)
+
 _MAX_NUDGES_PER_TURN = 2
 
 
@@ -71,6 +84,7 @@ class AgentLoop:
         """Process one user turn (may involve multiple LLM iterations)."""
         self._educational_messages: list[str] = []
         nudge_count = 0
+        write_used = False
 
         # Scope check
         scope = self.policy.check_scope(user_input)
@@ -100,7 +114,8 @@ class AgentLoop:
                     nudge_count += 1
                     self._log("nudge", {"reason": "code_block_without_tool", "count": nudge_count})
                     self.messages.append(Message(role="assistant", content=response.content))
-                    self.messages.append(Message(role="user", content=_TOOL_NUDGE))
+                    nudge_msg = _TOOL_NUDGE_AFTER_WRITE if write_used else _TOOL_NUDGE
+                    self.messages.append(Message(role="user", content=nudge_msg))
                     if self.debug:
                         print(f"  [nudge {nudge_count}] code block detected without tool call")
                     continue
@@ -130,7 +145,13 @@ class AgentLoop:
             self.messages.append(Message(role="assistant", content=response.content))
             tool_results = self._execute_tools(response)
             tool_summary = json.dumps(tool_results, ensure_ascii=False)
-            self.messages.append(Message(role="user", content=f"Tool results:\n{tool_summary}"))
+            has_write = any(tc.name in ("write", "edit") for tc in response.tool_calls)
+            if has_write:
+                write_used = True
+            result_msg = f"Tool results:\n{tool_summary}"
+            if has_write:
+                result_msg += _WRITE_TOOL_REMINDER
+            self.messages.append(Message(role="user", content=result_msg))
 
             # Validate any write/edit output
             for tc, result in zip(response.tool_calls, tool_results):
@@ -162,6 +183,7 @@ class AgentLoop:
         """
         self._educational_messages: list[str] = []
         nudge_count = 0
+        write_used = False
 
         # Scope check
         scope = self.policy.check_scope(user_input)
@@ -182,18 +204,13 @@ class AgentLoop:
             if self.debug:
                 print(f"  [iter {i+1}] calling LLM (streaming)...")
 
-            # Stream from LLM
+            # Stream from LLM — buffer all chunks, yield only after validation
             response: LLMResponse | None = None
             streamed_chunks: list[str] = []
-            is_first_text_iter = (i == 0) or not streamed_chunks
 
             for item in self.llm.chat_stream(self.messages, tools=tool_defs):
                 if isinstance(item, str):
                     streamed_chunks.append(item)
-                    # Only stream to user on the first successful text iteration
-                    # (retries due to validation are not streamed)
-                    if is_first_text_iter:
-                        yield item
                 elif isinstance(item, LLMResponse):
                     response = item
 
@@ -204,17 +221,17 @@ class AgentLoop:
                 "content": response.content, "tools": len(response.tool_calls)
             })
 
-            # No tool calls → check for code blocks, then validate
+            # No tool calls → validate before yielding to user
             if not response.tool_calls:
                 # Nudge: LLM output code as text instead of using tools
                 if _has_code_block(response.content) and nudge_count < _MAX_NUDGES_PER_TURN:
                     nudge_count += 1
                     self._log("nudge", {"reason": "code_block_without_tool", "count": nudge_count})
                     self.messages.append(Message(role="assistant", content=response.content))
-                    self.messages.append(Message(role="user", content=_TOOL_NUDGE))
+                    nudge_msg = _TOOL_NUDGE_AFTER_WRITE if write_used else _TOOL_NUDGE
+                    self.messages.append(Message(role="user", content=nudge_msg))
                     if self.debug:
                         print(f"  [nudge {nudge_count}] code block detected without tool call")
-                    is_first_text_iter = False
                     continue
 
                 validation = self.validator.validate(response.content, "response.py")
@@ -234,9 +251,11 @@ class AgentLoop:
                         Message(role="assistant", content=response.content)
                     )
                     self.messages.append(Message(role="user", content=correction))
-                    # Next iteration won't stream to user (is_first_text_iter = False)
-                    is_first_text_iter = False
                     continue
+
+                # Validation passed — yield all buffered chunks to user
+                for chunk in streamed_chunks:
+                    yield chunk
 
                 final_response = response.content
                 self.messages.append(
@@ -245,15 +264,21 @@ class AgentLoop:
                 self._track_concepts(response.content)
                 break
 
-            # Tool calls path (non-streaming)
+            # Tool calls path — yield buffered text, then execute tools
+            for chunk in streamed_chunks:
+                yield chunk
             self.messages.append(
                 Message(role="assistant", content=response.content)
             )
             tool_results = self._execute_tools(response)
             tool_summary = json.dumps(tool_results, ensure_ascii=False)
-            self.messages.append(
-                Message(role="user", content=f"Tool results:\n{tool_summary}")
-            )
+            has_write = any(tc.name in ("write", "edit") for tc in response.tool_calls)
+            if has_write:
+                write_used = True
+            result_msg = f"Tool results:\n{tool_summary}"
+            if has_write:
+                result_msg += _WRITE_TOOL_REMINDER
+            self.messages.append(Message(role="user", content=result_msg))
 
             for tc, result in zip(response.tool_calls, tool_results):
                 if tc.name in ("write", "edit") and "error" not in result:

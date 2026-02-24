@@ -89,6 +89,7 @@ class PolicyEngine:
             tool_rules = (
                 "- コードは必ず write 関数を呼び出してファイルに保存すること。"
                 "コードをテキストとして返答に含めてはいけない。\n"
+                "- マークダウンのコードブロック（``` ... ```）でコードを書いてはいけない。\n"
                 "- コードの実行は必ず bash 関数を呼び出して行うこと（例: bash で `python ファイル名.py`）。"
                 "実行結果を推測・捏造してはいけない。\n"
             )
@@ -96,23 +97,28 @@ class PolicyEngine:
             tool_rules = (
                 "- コードは必ず write 関数を呼び出してファイルに保存すること。"
                 "コードをテキストとして返答に含めてはいけない。\n"
+                "- マークダウンのコードブロック（``` ... ```）でコードを書いてはいけない。\n"
                 "- Web モードでは bash は使えない。ファイル保存後「ブラウザで開いてください」と案内する。\n"
             )
+
+        tool_section = (
+            "\n\n【ツール使用ルール（最重要）】\n"
+            f"{tool_rules}"
+        )
 
         constraint = (
             "\n\n【制約】\n"
             "- このモードで許可された言語・ライブラリだけを使う。\n"
             "- 1回の返答のコードは最大10行。短く保つ。\n"
             "- ネットワーク通信・パッケージ追加は禁止。\n"
-            f"{tool_rules}"
         )
 
         education = build_education_prompt(
             self.profile.mode, self.level, self.mastered_concepts,
         )
         if education:
-            return education + "\n\n" + base + constraint
-        return base + constraint
+            return education + tool_section + "\n\n" + base + constraint
+        return base + tool_section + constraint
 
 
 def _get_extension(filename: str) -> str:
