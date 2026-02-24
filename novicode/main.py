@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import termios
 import time
 
 from novicode.cli import build_parser
@@ -23,7 +22,7 @@ from novicode.validator import Validator
 from novicode.tool_registry import ToolRegistry
 from novicode.session_manager import SessionManager
 from novicode.metrics import Metrics
-from novicode.agent_loop import AgentLoop, StatusEvent
+from novicode.agent_loop import AgentLoop, StatusEvent, CodeWriteEvent
 from novicode.curriculum import Level
 from novicode.progress import ProgressTracker
 from novicode.challenges import (
@@ -32,8 +31,9 @@ from novicode.challenges import (
     format_hint,
     Challenge,
 )
-from novicode.formatter import StreamFormatter
+from novicode.formatter import StreamFormatter, _highlight_code
 from novicode.spinner import Spinner
+from novicode.input_reader import InputReader
 
 
 # ── ANSI color constants ─────────────────────────────────────
@@ -86,7 +86,26 @@ Commands:
   /level     — Show current level
   /challenge — Get a practice challenge
   /hint      — Show hint for current challenge
+
+Keybinds:
+  Enter        — 改行（複数行入力）
+  Shift+Enter  — 送信
+  Ctrl+D       — 送信（フォールバック）
+  ESC          — 終了
 """
+
+
+def _render_code_card(event: CodeWriteEvent) -> str:
+    """Render a CodeWriteEvent as a syntax-highlighted code card."""
+    filename = os.path.basename(event.path)
+    bar = "─" * 40
+    highlighted = _highlight_code(event.content, event.lang).rstrip("\n")
+    return (
+        f"\n  {_GREEN}📝 {filename}{_RESET}\n"
+        f"  {_DIM}{bar}{_RESET}\n"
+        f"{highlighted}\n"
+        f"  {_DIM}{bar}{_RESET}\n"
+    )
 
 
 def main() -> None:
@@ -181,7 +200,7 @@ def main() -> None:
     print(f"  {_GREEN}🔬 Research{_RESET} {_WHITE}{'ON' if args.research else 'OFF'}{_RESET}")
     print(sep)
     print()
-    print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}Ctrl+D{_RESET}{_WHITE} で送信（複数行OK）{_RESET}")
+    print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}Shift+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}ESC: 終了{_RESET}")
     print(f"  {_GREEN}📝 コマンド{_RESET} {_DIM}/help{_RESET} 一覧  {_DIM}/exit{_RESET} 終了  {_DIM}/challenge{_RESET} 練習問題  {_DIM}/progress{_RESET} 進捗")
     print()
 
@@ -230,147 +249,136 @@ def main() -> None:
     # ── Track current challenge for /hint ───────────────────────
     current_challenge: Challenge | None = None
 
-    # ── Suppress ^D echo ─────────────────────────────────────────
-    _old_termios = None
-    try:
-        fd = sys.stdin.fileno()
-        _old_termios = termios.tcgetattr(fd)
-        new_attr = termios.tcgetattr(fd)
-        new_attr[3] &= ~termios.ECHOCTL
-        termios.tcsetattr(fd, termios.TCSANOW, new_attr)
-    except (OSError, termios.error):
-        pass  # not a TTY (e.g. piped input)
-
     # ── Interactive loop ────────────────────────────────────────
     _BOX_W = 48
-    _BOX_HINT = f" {_DIM}Enter: 改行  Ctrl+D: 送信{_RESET}"
+    _BOX_HINT = f" {_DIM}Enter: 改行  Shift+Enter: 送信  ESC: 終了{_RESET}"
     _BOX_TOP = f"{_DIM}╭{'─' * _BOX_W}{_RESET}{_BOX_HINT}"
     _BOX_BOT = f"{_DIM}╰{'─' * _BOX_W}{_RESET}"
     _BOX_L   = f"{_DIM}│{_RESET}"
     _PROMPT_FIRST = f"{_BOX_L} {_GREEN}{_BOLD}You>{_RESET} "
     _PROMPT_CONT  = f"{_BOX_L} {_DIM}  ..{_RESET}  "
 
+    reader = InputReader(
+        prompt_first=_PROMPT_FIRST,
+        prompt_cont=_PROMPT_CONT,
+        box_top=_BOX_TOP,
+        box_bottom=_BOX_BOT,
+    )
+
     try:
-        while True:
-            # Multi-line input: Enter = newline, Ctrl+D = send
-            print(_BOX_TOP)
-            lines: list[str] = []
-            try:
-                while True:
-                    lines.append(input(_PROMPT_FIRST if not lines else _PROMPT_CONT))
-            except EOFError:
-                if not lines:
-                    print(_BOX_BOT)
-                    break  # Ctrl+D with no input → exit
-            print(_BOX_BOT)
+        with reader:
+            while True:
+                result = reader.read_input()
 
-            user_input = "\n".join(lines).strip()
-            if not user_input:
-                continue
+                if result.action == "exit":
+                    break
 
-            # Interactive commands
-            if user_input == "/exit":
-                break
-            elif user_input == "/help":
-                print(INTERACTIVE_HELP)
-                continue
-            elif user_input == "/clear":
-                loop.messages = loop.messages[:1]  # keep system prompt
-                print("Conversation cleared.")
-                continue
-            elif user_input == "/metrics":
-                print(metrics.display())
-                continue
-            elif user_input == "/trace":
-                if len(loop.messages) >= 2:
-                    last = loop.messages[-1]
-                    print(f"[{last.role}] {last.content[:500]}")
-                else:
-                    print("No trace available.")
-                continue
-            elif user_input == "/status":
-                print(f"Session : {session.meta.session_id}")
-                print(f"Model   : {model_name}")
-                print(f"Mode    : {mode.value}")
-                print(f"Level   : {level_ja.get(progress.level.value, progress.level.value)}")
-                print(f"Iters   : {metrics.iterations}")
-                print(f"Elapsed : {metrics.elapsed_seconds():.1f}s")
-                continue
-            elif user_input == "/save":
-                path = session.save()
-                progress.save()
-                print(f"Session saved: {path}")
-                continue
-            elif user_input == "/progress":
-                print(progress.display())
-                continue
-            elif user_input == "/level":
-                lv = progress.level
-                print(f"現在のレベル: {level_ja.get(lv.value, lv.value)} ({lv.value})")
-                mastered = progress.mastered_concepts()
-                print(f"習得済み概念: {len(mastered)} 個")
-                if mastered:
-                    print(f"  {', '.join(sorted(mastered))}")
-                continue
-            elif user_input == "/challenge":
-                ch = get_random_challenge(mode, progress.level)
-                if ch:
-                    current_challenge = ch
-                    print(format_challenge(ch))
-                else:
-                    print("このモード・レベルにはチャレンジがありません。")
-                continue
-            elif user_input == "/hint":
-                if current_challenge:
-                    print(format_hint(current_challenge))
-                else:
-                    print("先に /challenge でチャレンジを取得してください。")
-                continue
+                user_input = result.text
+                if not user_input:
+                    continue
 
-            # Run agent turn (streaming with syntax highlighting)
-            fmt = StreamFormatter()
-            header_shown = False
-            spinner = Spinner()
-            try:
-                for chunk in loop.run_turn_stream(user_input):
-                    if isinstance(chunk, StatusEvent):
-                        if chunk.kind == "thinking":
-                            spinner.start("考え中...")
-                        elif chunk.kind == "tool_start":
-                            spinner.start(f"実行中: {chunk.detail}...")
-                        elif chunk.kind == "tool_done":
-                            spinner.start("考え中...")
-                        continue
-                    spinner.stop()
-                    output = fmt.feed(chunk)
-                    if output:
+                # Interactive commands
+                if user_input == "/exit":
+                    break
+                elif user_input == "/help":
+                    print(INTERACTIVE_HELP)
+                    continue
+                elif user_input == "/clear":
+                    loop.messages = loop.messages[:1]  # keep system prompt
+                    print("Conversation cleared.")
+                    continue
+                elif user_input == "/metrics":
+                    print(metrics.display())
+                    continue
+                elif user_input == "/trace":
+                    if len(loop.messages) >= 2:
+                        last = loop.messages[-1]
+                        print(f"[{last.role}] {last.content[:500]}")
+                    else:
+                        print("No trace available.")
+                    continue
+                elif user_input == "/status":
+                    print(f"Session : {session.meta.session_id}")
+                    print(f"Model   : {model_name}")
+                    print(f"Mode    : {mode.value}")
+                    print(f"Level   : {level_ja.get(progress.level.value, progress.level.value)}")
+                    print(f"Iters   : {metrics.iterations}")
+                    print(f"Elapsed : {metrics.elapsed_seconds():.1f}s")
+                    continue
+                elif user_input == "/save":
+                    path = session.save()
+                    progress.save()
+                    print(f"Session saved: {path}")
+                    continue
+                elif user_input == "/progress":
+                    print(progress.display())
+                    continue
+                elif user_input == "/level":
+                    lv = progress.level
+                    print(f"現在のレベル: {level_ja.get(lv.value, lv.value)} ({lv.value})")
+                    mastered = progress.mastered_concepts()
+                    print(f"習得済み概念: {len(mastered)} 個")
+                    if mastered:
+                        print(f"  {', '.join(sorted(mastered))}")
+                    continue
+                elif user_input == "/challenge":
+                    ch = get_random_challenge(mode, progress.level)
+                    if ch:
+                        current_challenge = ch
+                        print(format_challenge(ch))
+                    else:
+                        print("このモード・レベルにはチャレンジがありません。")
+                    continue
+                elif user_input == "/hint":
+                    if current_challenge:
+                        print(format_hint(current_challenge))
+                    else:
+                        print("先に /challenge でチャレンジを取得してください。")
+                    continue
+
+                # Run agent turn (streaming with syntax highlighting)
+                fmt = StreamFormatter()
+                header_shown = False
+                spinner = Spinner()
+                try:
+                    for chunk in loop.run_turn_stream(user_input):
+                        if isinstance(chunk, StatusEvent):
+                            if chunk.kind == "thinking":
+                                spinner.start("考え中...")
+                            elif chunk.kind == "tool_start":
+                                spinner.start(f"実行中: {chunk.detail}...")
+                            elif chunk.kind == "tool_done":
+                                spinner.start("考え中...")
+                            continue
+                        if isinstance(chunk, CodeWriteEvent):
+                            spinner.stop()
+                            sys.stdout.write(_render_code_card(chunk))
+                            sys.stdout.flush()
+                            continue
+                        spinner.stop()
+                        output = fmt.feed(chunk)
+                        if output:
+                            if not header_shown:
+                                sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
+                                header_shown = True
+                            sys.stdout.write(output)
+                            sys.stdout.flush()
+                    remaining = fmt.flush()
+                    if remaining:
                         if not header_shown:
                             sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
                             header_shown = True
-                        sys.stdout.write(output)
+                        sys.stdout.write(remaining)
                         sys.stdout.flush()
-                remaining = fmt.flush()
-                if remaining:
-                    if not header_shown:
-                        sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
-                        header_shown = True
-                    sys.stdout.write(remaining)
-                    sys.stdout.flush()
-                if header_shown:
-                    sys.stdout.write("\n\n")
-                    sys.stdout.flush()
-            finally:
-                spinner.stop()
+                    if header_shown:
+                        sys.stdout.write("\n\n")
+                        sys.stdout.flush()
+                finally:
+                    spinner.stop()
 
     except KeyboardInterrupt:
         print("\nInterrupted.")
     finally:
-        # Restore terminal settings
-        if _old_termios is not None:
-            try:
-                termios.tcsetattr(fd, termios.TCSANOW, _old_termios)
-            except (OSError, termios.error):
-                pass
         progress.save()
         if args.research:
             session.add("metrics_final", metrics.summary())

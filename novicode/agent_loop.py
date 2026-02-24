@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from novicode.config import ModeProfile, DEFAULT_MAX_ITERATIONS, build_mode_profile
-from novicode.llm_adapter import LLMAdapter, Message, LLMResponse, TOOL_DEFINITIONS
+from novicode.llm_adapter import LLMAdapter, Message, LLMResponse, ToolCall, TOOL_DEFINITIONS
 from novicode.tool_registry import ToolRegistry
 from novicode.security_manager import SecurityManager
 from novicode.policy_engine import PolicyEngine
@@ -25,6 +26,59 @@ class StatusEvent:
     """Emitted by *run_turn_stream* to signal progress to the UI layer."""
     kind: str      # "thinking" | "tool_start" | "tool_done"
     detail: str = ""
+
+
+@dataclass
+class CodeWriteEvent:
+    """Emitted after a successful write tool execution for UI rendering."""
+    path: str
+    content: str
+    lang: str
+
+
+# ── Text-based tool call parsing ─────────────────────────────────────
+
+_TEXT_TOOL_RE = re.compile(
+    r"<function=(\w+)>(.*?)</function>",
+    re.DOTALL,
+)
+_PARAM_RE = re.compile(
+    r"<parameter=(\w+)>(.*?)</parameter>",
+    re.DOTALL,
+)
+
+
+def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
+    """Parse ``<function=NAME>`` XML tool calls embedded in plain text.
+
+    Returns a list of parsed :class:`ToolCall` objects and the text with
+    those XML fragments removed.
+    """
+    calls: list[ToolCall] = []
+    for m in _TEXT_TOOL_RE.finditer(text):
+        name = m.group(1)
+        body = m.group(2)
+        args: dict[str, str] = {}
+        for pm in _PARAM_RE.finditer(body):
+            args[pm.group(1)] = pm.group(2)
+        calls.append(ToolCall(name=name, arguments=args))
+    cleaned = _TEXT_TOOL_RE.sub("", text).strip()
+    return calls, cleaned
+
+
+def _lang_from_path(path: str) -> str:
+    """Guess language identifier from file extension."""
+    ext = os.path.splitext(path)[1].lower()
+    return {
+        ".py": "python",
+        ".js": "javascript",
+        ".html": "html",
+        ".css": "css",
+        ".json": "json",
+        ".sh": "bash",
+        ".yml": "yaml",
+        ".yaml": "yaml",
+    }.get(ext, "python")
 
 
 _CODE_BLOCK_RE = re.compile(r"```\w*\n")
@@ -119,6 +173,14 @@ class AgentLoop:
             # Call LLM
             tool_defs = self._filtered_tool_defs()
             response = self.llm.chat(self.messages, tools=tool_defs)
+
+            # Parse text-based tool calls (e.g. <function=write>...</function>)
+            if not response.tool_calls and response.content:
+                text_calls, cleaned = _parse_text_tool_calls(response.content)
+                if text_calls:
+                    response.tool_calls.extend(text_calls)
+                    response.content = cleaned
+
             self._log("llm_response", {"content": response.content, "tools": len(response.tool_calls)})
 
             if self.debug:
@@ -192,11 +254,12 @@ class AgentLoop:
 
         return final_response
 
-    def run_turn_stream(self, user_input: str) -> Iterator[str | StatusEvent]:
+    def run_turn_stream(self, user_input: str) -> Iterator[str | StatusEvent | CodeWriteEvent]:
         """Process one user turn, yielding text chunks and status events.
 
-        Yields ``str`` chunks as they arrive from the LLM and
-        :class:`StatusEvent` instances so the UI can drive a spinner.
+        Yields ``str`` chunks as they arrive from the LLM,
+        :class:`StatusEvent` instances so the UI can drive a spinner,
+        and :class:`CodeWriteEvent` after successful write tool execution.
         Educational messages and level-up notifications are yielded after
         the LLM response.
         """
@@ -236,6 +299,15 @@ class AgentLoop:
 
             if response is None:
                 continue
+
+            # Parse text-based tool calls (e.g. <function=write>...</function>)
+            if not response.tool_calls and response.content:
+                text_calls, cleaned = _parse_text_tool_calls(response.content)
+                if text_calls:
+                    response.tool_calls.extend(text_calls)
+                    response.content = cleaned
+                    # Rebuild streamed_chunks to match cleaned content
+                    streamed_chunks = [cleaned] if cleaned else []
 
             self._log("llm_response", {
                 "content": response.content, "tools": len(response.tool_calls)
@@ -317,6 +389,18 @@ class AgentLoop:
                                 "violations": [v.__dict__ for v in vr.violations]
                             })
                             self.metrics.record_violation()
+
+            # Yield CodeWriteEvent for each successful write/edit
+            for tc, result in zip(response.tool_calls, tool_results):
+                if tc.name in ("write", "edit") and "error" not in result:
+                    wpath = tc.arguments.get("path", "")
+                    wcontent = tc.arguments.get("content", "")
+                    if wpath and wcontent:
+                        yield CodeWriteEvent(
+                            path=wpath,
+                            content=wcontent,
+                            lang=_lang_from_path(wpath),
+                        )
         else:
             yield "(Max iterations reached. Please simplify your request.)"
             final_response = "(Max iterations reached.)"
