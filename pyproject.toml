@@ -21,6 +21,7 @@ classifiers = [
     "Topic :: Education",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
+dependencies = ["pygments>=2.17"]
 
 [project.scripts]
 novicode = "novicode.main:main"

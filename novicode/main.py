@@ -31,6 +31,7 @@ from novicode.challenges import (
     format_hint,
     Challenge,
 )
+from novicode.formatter import StreamFormatter
 
 
 BANNER = r"""
@@ -230,11 +231,18 @@ def main() -> None:
                     print("先に /challenge でチャレンジを取得してください。")
                 continue
 
-            # Run agent turn (streaming)
+            # Run agent turn (streaming with syntax highlighting)
             sys.stdout.write("\nAssistant> ")
             sys.stdout.flush()
+            fmt = StreamFormatter()
             for chunk in loop.run_turn_stream(user_input):
-                sys.stdout.write(chunk)
+                output = fmt.feed(chunk)
+                if output:
+                    sys.stdout.write(output)
+                    sys.stdout.flush()
+            remaining = fmt.flush()
+            if remaining:
+                sys.stdout.write(remaining)
                 sys.stdout.flush()
             sys.stdout.write("\n\n")
             sys.stdout.flush()

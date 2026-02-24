@@ -261,6 +261,7 @@ class AgentLoop:
             return
         concepts = extract_concepts(text, self.profile.mode)
         if concepts:
+            prev_mastered = self.progress.mastered_concepts().copy()
             self.progress.record_concepts(concepts)
             self.metrics.concepts_taught.extend(concepts)
             self._log("concepts", {"found": concepts})
@@ -277,13 +278,16 @@ class AgentLoop:
                 )
                 self._educational_messages.append(msg)
                 self._log("level_up", {"new_level": new_level.value})
-
-                # Update system prompt for new level
                 self.policy.level = new_level
+                self.progress.save()
+
+            # Rebuild system prompt if mastered concepts changed
+            current_mastered = self.progress.mastered_concepts()
+            if current_mastered != prev_mastered:
+                self.policy.mastered_concepts = current_mastered
                 self.messages[0] = Message(
                     role="system", content=self.policy.build_system_prompt()
                 )
-                self.progress.save()
 
     def restore_messages(self, messages: list[Message]) -> None:
         """Restore conversation history (for session resume)."""

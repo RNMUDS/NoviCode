@@ -144,3 +144,24 @@ class TestEducationPrompt:
             for level in Level:
                 prompt = build_education_prompt(mode, level)
                 assert len(prompt) > 0, f"Empty prompt for {mode}/{level}"
+
+    def test_beginner_prompt_contains_understanding_check(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "理解の確認" in prompt
+        assert "分かりますか" in prompt
+
+    def test_mastered_concepts_shown_in_prompt(self):
+        prompt = build_education_prompt(
+            Mode.PYTHON_BASIC, Level.BEGINNER, mastered_concepts={"変数", "print"}
+        )
+        assert "変数" in prompt
+        assert "print" in prompt
+        assert "確認不要" in prompt
+
+    def test_no_mastered_concepts_shows_placeholder(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "（なし）" in prompt
+
+    def test_beginner_prompt_requires_code_fence(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "```" in prompt

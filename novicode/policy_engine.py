@@ -25,6 +25,7 @@ class PolicyEngine:
     def __init__(self, profile: ModeProfile, level: Level = Level.BEGINNER) -> None:
         self.profile = profile
         self.level = level
+        self.mastered_concepts: set[str] = set()
 
     def check_tool_allowed(self, tool_name: str) -> PolicyVerdict:
         """Is this tool permitted in the current mode?"""
@@ -88,7 +89,9 @@ class PolicyEngine:
             "- ネットワーク通信・パッケージ追加は禁止。\n"
         )
 
-        education = build_education_prompt(self.profile.mode, self.level)
+        education = build_education_prompt(
+            self.profile.mode, self.level, self.mastered_concepts,
+        )
         if education:
             return education + "\n\n" + base + constraint
         return base + constraint

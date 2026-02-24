@@ -291,7 +291,7 @@ _BEGINNER_PROMPT_TEMPLATE = """\
 
 【返答の形式】
 1. 今やることを1〜2文で説明する
-2. コードを書く（最大10行）
+2. コードを書く（最大10行）。コードは必ず ```言語名 と ``` で囲む（例: ```python ... ```）
 3. コードの中の新しい部分だけを短く説明する（箇条書き2〜3個）
 4. 「動かしてみてください」で終わる
 
@@ -303,6 +303,12 @@ _BEGINNER_PROMPT_TEMPLATE = """\
 【説明のルール】
 - 新しい概念が出たら名前を教える（「これは〇〇と言います」）
 - 説明は短く。1つの概念につき1〜2文。
+
+【理解の確認】
+- 「関数」「変数」「ループ」など、プログラミング用語を初めて使うときは
+  「〇〇については分かりますか？」と聞いてから説明する。
+- ユーザーが「分かる」と答えたら説明をスキップし、「分からない」と答えたら簡潔に説明する。
+- 以下の概念はユーザーが既に理解済みなので確認不要：{mastered_concepts}
 
 【今のレベル】初級 — {beginner_topics}を学んでいます
 """
@@ -336,7 +342,11 @@ _MODE_DOMAINS: dict[Mode, str] = {
 }
 
 
-def build_education_prompt(mode: Mode, level: Level) -> str:
+def build_education_prompt(
+    mode: Mode,
+    level: Level,
+    mastered_concepts: set[str] | None = None,
+) -> str:
     """Build the educational system prompt for a given mode and level."""
     catalog = CONCEPT_CATALOGS.get(mode)
     if catalog is None:
@@ -345,9 +355,14 @@ def build_education_prompt(mode: Mode, level: Level) -> str:
     domain = _MODE_DOMAINS.get(mode, str(mode.value))
     beginner_topics = "、".join(sorted(catalog.beginner))
 
+    mastered_str = "（なし）"
+    if mastered_concepts:
+        mastered_str = "、".join(sorted(mastered_concepts))
+
     prompt = _BEGINNER_PROMPT_TEMPLATE.format(
         domain=domain,
         beginner_topics=beginner_topics,
+        mastered_concepts=mastered_str,
     )
 
     if level in (Level.INTERMEDIATE, Level.ADVANCED):
