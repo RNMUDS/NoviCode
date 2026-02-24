@@ -232,20 +232,26 @@ def main() -> None:
                 continue
 
             # Run agent turn (streaming with syntax highlighting)
-            sys.stdout.write("\nAssistant> ")
-            sys.stdout.flush()
             fmt = StreamFormatter()
+            header_shown = False
             for chunk in loop.run_turn_stream(user_input):
                 output = fmt.feed(chunk)
                 if output:
+                    if not header_shown:
+                        sys.stdout.write("\nAssistant>\n")
+                        header_shown = True
                     sys.stdout.write(output)
                     sys.stdout.flush()
             remaining = fmt.flush()
             if remaining:
+                if not header_shown:
+                    sys.stdout.write("\nAssistant>\n")
+                    header_shown = True
                 sys.stdout.write(remaining)
                 sys.stdout.flush()
-            sys.stdout.write("\n\n")
-            sys.stdout.flush()
+            if header_shown:
+                sys.stdout.write("\n\n")
+                sys.stdout.flush()
 
     except KeyboardInterrupt:
         print("\nInterrupted.")
