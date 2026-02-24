@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import termios
 import time
 
 from novicode.cli import build_parser
@@ -194,6 +195,17 @@ def main() -> None:
     # ── Track current challenge for /hint ───────────────────────
     current_challenge: Challenge | None = None
 
+    # ── Suppress ^D echo ─────────────────────────────────────────
+    _old_termios = None
+    try:
+        fd = sys.stdin.fileno()
+        _old_termios = termios.tcgetattr(fd)
+        new_attr = termios.tcgetattr(fd)
+        new_attr[3] &= ~termios.ECHOCTL
+        termios.tcsetattr(fd, termios.TCSANOW, new_attr)
+    except (OSError, termios.error):
+        pass  # not a TTY (e.g. piped input)
+
     # ── Interactive loop ────────────────────────────────────────
     _PROMPT_FIRST = f"{_GREEN}{_BOLD}You>{_RESET} "
     _PROMPT_CONT  = f"{_DIM}  ..{_RESET}  "
@@ -297,6 +309,12 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nInterrupted.")
     finally:
+        # Restore terminal settings
+        if _old_termios is not None:
+            try:
+                termios.tcsetattr(fd, termios.TCSANOW, _old_termios)
+            except (OSError, termios.error):
+                pass
         progress.save()
         if args.research:
             session.add("metrics_final", metrics.summary())

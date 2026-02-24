@@ -6,7 +6,7 @@ Validates that the agent loop produces natural, well-structured conversations:
   - Tool results appear as user messages after assistant tool calls
   - No corrupted or out-of-order messages
   - Conversation content is meaningful (not empty, not garbled)
-  - Natural teaching patterns: explain → write → predict → run → choose
+  - Natural teaching patterns: explain → write → confirm → run → choose
 
 Simulates 1000 users × 10 turns for run_turn and run_turn_stream.
 """
@@ -181,7 +181,7 @@ _TEACHING_FLOWS = {
                 "ファイルを保存しました。\n"
                 "- `x = 10` は変数 x に 10 を代入しています\n"
                 "- `print(x)` は x の値を表示します\n\n"
-                "このコードを実行すると、どんな結果になると思いますか？"
+                "実行してみましょうか？"
             ),
         ],
         "checks": {
@@ -233,7 +233,7 @@ _TEACHING_FLOWS = {
                 "保存しました。\n"
                 "- `for i in range(5):` は 0〜4 の5回繰り返します\n"
                 "- `print(i)` は i の値を表示します\n\n"
-                "このコードを実行すると、どんな結果になると思いますか？"
+                "実行してみましょうか？"
             ),
         ],
         "checks": {
@@ -251,7 +251,7 @@ _TEACHING_FLOWS = {
             ),
             _resp(
                 "最初のプログラムを作りました。\n\n"
-                "このコードを実行すると、どんな結果になると思いますか？"
+                "実行してみましょうか？"
             ),
         ],
         "checks": {
@@ -276,7 +276,7 @@ _TEACHING_FLOWS = {
             ),
             _resp(
                 "新しいコードを保存しました。\n\n"
-                "このコードを実行すると、どんな結果になると思いますか？"
+                "実行してみましょうか？"
             ),
         ],
         "checks": {
@@ -347,7 +347,7 @@ class TestNaturalTeachingFlows:
             nudges = [m for m in loop.messages if m.content == _TOOL_NUDGE]
             assert len(nudges) >= 1, f"{flow_name}: expected nudge"
         if checks.get("final_has_question"):
-            assert "思いますか" in result, f"{flow_name}: expected prediction question"
+            assert "みましょうか" in result, f"{flow_name}: expected execution confirmation"
         if checks.get("final_has_choices"):
             assert any(c in result for c in ["A.", "B.", "どちら"]), (
                 f"{flow_name}: expected choices"
@@ -390,7 +390,7 @@ _LLM_PATTERNS = {
                  content=f"x = {rng.randint(1,100)}\nprint(x)")],
         ),
         _resp(
-            "保存しました。\n\nこのコードを実行すると、どんな結果になると思いますか？"
+            "保存しました。\n\n実行してみましょうか？"
         ),
     ],
     "run_code": lambda rng: [
@@ -412,13 +412,13 @@ _LLM_PATTERNS = {
             "クラスはデータと処理をまとめるものです。",
             "分かりました。もう少し簡単に説明しますね。",
             "いい質問ですね！",
-            "素晴らしい予測です！正解です。",
+            "いいですね！正解です。",
         ])),
     ],
     "code_block_nudge": lambda rng: [
         _resp(f"```python\nx = {rng.randint(1,100)}\nprint(x)\n```\n"),
         _resp("", [_tc("write", path="f.py", content="x=1\nprint(x)")]),
-        _resp("保存しました。どんな結果になると思いますか？"),
+        _resp("保存しました。実行してみましょうか？"),
     ],
     "empty_then_text": lambda rng: [
         _resp(""),  # empty first
@@ -486,7 +486,7 @@ def _make_stream(pattern_name, rng):
         text = rng.choice([
             "変数について説明しますね。",
             "forループの使い方です。",
-            "保存しました。どんな結果になると思いますか？",
+            "保存しました。実行してみましょうか？",
             "正解です！素晴らしいですね。",
             "次は何をしましょうか？",
         ])
@@ -592,8 +592,8 @@ class TestConversationContentQuality:
         )
 
     @pytest.mark.parametrize("mode", list(Mode))
-    def test_prediction_question_in_teaching_flow(self, mode):
-        """Teaching flow should end with prediction question."""
+    def test_execution_confirmation_in_teaching_flow(self, mode):
+        """Teaching flow should end with execution confirmation."""
         llm = MagicMock()
         llm.chat.side_effect = [
             _resp("コードを作ります。", [
@@ -601,12 +601,12 @@ class TestConversationContentQuality:
             ]),
             _resp(
                 "保存しました。\n"
-                "このコードを実行すると、どんな結果になると思いますか？"
+                "実行してみましょうか？"
             ),
         ]
         loop = _loop(llm, mode=mode)
         result = loop.run_turn("教えて")
-        assert "思いますか" in result
+        assert "みましょうか" in result
 
     @pytest.mark.parametrize("mode", list(Mode))
     def test_tool_usage_logged_in_metrics(self, mode):

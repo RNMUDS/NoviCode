@@ -128,7 +128,7 @@ class TestEducationPrompt:
         assert "初級" in prompt
         assert "Python" in prompt
         assert "バイブコーディング" in prompt
-        assert "予測" in prompt
+        assert "実行してみましょうか" in prompt
 
     def test_beginner_prompt_no_old_phrases(self):
         prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
