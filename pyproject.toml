@@ -34,6 +34,16 @@ testpaths = ["tests"]
 
 [project.optional-dependencies]
 py5 = ["py5>=0.8"]
+sklearn = ["scikit-learn>=1.4", "numpy>=1.26"]
+pandas = ["pandas>=2.2", "matplotlib>=3.8", "seaborn>=0.13"]
+all = [
+    "py5>=0.8",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
