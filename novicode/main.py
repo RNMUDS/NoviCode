@@ -207,19 +207,26 @@ def main() -> None:
         pass  # not a TTY (e.g. piped input)
 
     # ── Interactive loop ────────────────────────────────────────
-    _PROMPT_FIRST = f"{_GREEN}{_BOLD}You>{_RESET} "
-    _PROMPT_CONT  = f"{_DIM}  ..{_RESET}  "
+    _BOX_W = 48
+    _BOX_TOP = f"{_DIM}╭{'─' * _BOX_W}{_RESET}"
+    _BOX_BOT = f"{_DIM}╰{'─' * _BOX_W}{_RESET}"
+    _BOX_L   = f"{_DIM}│{_RESET}"
+    _PROMPT_FIRST = f"{_BOX_L} {_GREEN}{_BOLD}You>{_RESET} "
+    _PROMPT_CONT  = f"{_BOX_L} {_DIM}  ..{_RESET}  "
 
     try:
         while True:
             # Multi-line input: Enter = newline, Ctrl+D = send
+            print(_BOX_TOP)
             lines: list[str] = []
             try:
                 while True:
                     lines.append(input(_PROMPT_FIRST if not lines else _PROMPT_CONT))
             except EOFError:
                 if not lines:
+                    print(_BOX_BOT)
                     break  # Ctrl+D with no input → exit
+            print(_BOX_BOT)
 
             user_input = "\n".join(lines).strip()
             if not user_input:

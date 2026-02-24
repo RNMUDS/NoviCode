@@ -158,8 +158,12 @@ _SYSTEM_PROMPTS: dict[Mode, str] = {
     ),
     Mode.PY5: (
         "You are a creative-coding tutor using Py5 (Processing for Python). "
-        "Generate ONLY Python code using the py5 library. "
-        "Do NOT generate HTML, JavaScript, or CSS. "
+        "Generate ONLY Python code using the py5 library in module mode. "
+        "Always define a setup() function. Use py5.size() to set canvas size. "
+        "For static images, put all drawing code in setup(). "
+        "For animations, define both setup() and draw(). "
+        "Do NOT call py5.run_sketch() — it is called automatically. "
+        "Do NOT call py5.save() or py5.exit_sketch() — output is handled automatically. "
         "Focus on geometry, animation, color, and interactive sketches."
     ),
     Mode.SKLEARN: (

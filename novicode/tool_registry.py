@@ -33,7 +33,7 @@ class ToolRegistry:
 
     def _register(self, working_dir: str) -> None:
         all_tools = {
-            "bash": BashTool(self.security, working_dir),
+            "bash": BashTool(self.security, working_dir, mode=self.profile.mode),
             "read": ReadTool(self.security, working_dir),
             "write": WriteTool(self.security, self.policy, working_dir),
             "edit": EditTool(self.security, self.policy, working_dir),
