@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 
 from novicode.config import ModeProfile, DEFAULT_MAX_ITERATIONS, build_mode_profile
 from novicode.llm_adapter import LLMAdapter, Message, LLMResponse, TOOL_DEFINITIONS
@@ -17,6 +18,13 @@ from novicode.session_manager import Session
 from novicode.metrics import Metrics
 from novicode.curriculum import extract_concepts
 from novicode.progress import ProgressTracker
+
+
+@dataclass
+class StatusEvent:
+    """Emitted by *run_turn_stream* to signal progress to the UI layer."""
+    kind: str      # "thinking" | "tool_start" | "tool_done"
+    detail: str = ""
 
 
 _CODE_BLOCK_RE = re.compile(r"```\w*\n")
@@ -184,11 +192,13 @@ class AgentLoop:
 
         return final_response
 
-    def run_turn_stream(self, user_input: str) -> Iterator[str]:
-        """Process one user turn, yielding text chunks for streaming display.
+    def run_turn_stream(self, user_input: str) -> Iterator[str | StatusEvent]:
+        """Process one user turn, yielding text chunks and status events.
 
-        Yields str chunks as they arrive from the LLM. Educational messages
-        and level-up notifications are yielded before the LLM response.
+        Yields ``str`` chunks as they arrive from the LLM and
+        :class:`StatusEvent` instances so the UI can drive a spinner.
+        Educational messages and level-up notifications are yielded after
+        the LLM response.
         """
         self._educational_messages: list[str] = []
         nudge_count = 0
@@ -209,6 +219,7 @@ class AgentLoop:
             self.metrics.increment_iteration()
 
             tool_defs = self._filtered_tool_defs()
+            yield StatusEvent("thinking")
 
             if self.debug:
                 print(f"  [iter {i+1}] calling LLM (streaming)...")
@@ -283,7 +294,10 @@ class AgentLoop:
             self.messages.append(
                 Message(role="assistant", content=response.content)
             )
+            tool_names = ", ".join(tc.name for tc in response.tool_calls)
+            yield StatusEvent("tool_start", tool_names)
             tool_results = self._execute_tools(response)
+            yield StatusEvent("tool_done")
             tool_summary = json.dumps(tool_results, ensure_ascii=False)
             if has_write:
                 write_used = True

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from novicode.agent_loop import AgentLoop, _has_code_block, _TOOL_NUDGE, _MAX_NUDGES_PER_TURN
+from novicode.agent_loop import AgentLoop, StatusEvent, _has_code_block, _TOOL_NUDGE, _MAX_NUDGES_PER_TURN
 from novicode.config import Mode, build_mode_profile
 from novicode.curriculum import Level
 from novicode.llm_adapter import LLMResponse, Message, ToolCall, TOOL_DEFINITIONS
@@ -183,7 +183,7 @@ class TestNudgeRunTurnStream:
         llm.chat_stream.side_effect = _stream_side_effect
 
         loop = _make_loop(llm)
-        chunks = list(loop.run_turn_stream("Hello"))
+        chunks = [c for c in loop.run_turn_stream("Hello") if isinstance(c, str)]
 
         nudge_msgs = [m for m in loop.messages if m.content == _TOOL_NUDGE]
         assert len(nudge_msgs) >= 1
@@ -207,7 +207,7 @@ class TestNudgeRunTurnStream:
 
         loop = _make_loop(llm)
         loop.tools.execute.return_value = {"status": "ok"}
-        chunks = list(loop.run_turn_stream("Create a file"))
+        chunks = [c for c in loop.run_turn_stream("Create a file") if isinstance(c, str)]
 
         nudge_msgs = [m for m in loop.messages if m.content == _TOOL_NUDGE]
         assert len(nudge_msgs) == 0
@@ -224,3 +224,77 @@ class TestNudgeConstants:
 
     def test_nudge_message_is_japanese(self):
         assert any(ord(c) > 0x3000 for c in _TOOL_NUDGE), "Nudge should contain Japanese text"
+
+
+# ── StatusEvent tests ────────────────────────────────────────────────
+
+class TestStatusEvents:
+    """Verify that run_turn_stream yields StatusEvent at correct points."""
+
+    def test_thinking_event_emitted(self):
+        """A 'thinking' StatusEvent is yielded before LLM streaming."""
+        llm = MagicMock()
+
+        def _stream(messages, tools=None):
+            yield "Hello!"
+            yield LLMResponse(content="Hello!", tool_calls=[])
+
+        llm.chat_stream.side_effect = _stream
+
+        loop = _make_loop(llm)
+        events = [c for c in loop.run_turn_stream("Hi") if isinstance(c, StatusEvent)]
+
+        assert any(e.kind == "thinking" for e in events), "Should emit 'thinking' event"
+
+    def test_tool_start_event_contains_tool_name(self):
+        """A 'tool_start' StatusEvent is yielded before tool execution."""
+        llm = MagicMock()
+
+        def _stream(messages, tools=None):
+            call_count = len([m for m in messages if m.role == "user" and "Tool results" in m.content])
+            if call_count == 0:
+                yield LLMResponse(
+                    content="Running...",
+                    tool_calls=[ToolCall(name="bash", arguments={"command": "echo hi"})],
+                )
+            else:
+                yield "Done."
+                yield LLMResponse(content="Done.", tool_calls=[])
+
+        llm.chat_stream.side_effect = _stream
+
+        loop = _make_loop(llm)
+        loop.tools.execute.return_value = {"status": "ok"}
+        events = [c for c in loop.run_turn_stream("Run echo") if isinstance(c, StatusEvent)]
+
+        tool_starts = [e for e in events if e.kind == "tool_start"]
+        assert len(tool_starts) >= 1, "Should emit 'tool_start' event"
+        assert "bash" in tool_starts[0].detail
+
+    def test_tool_done_event_after_execution(self):
+        """A 'tool_done' StatusEvent is yielded after tool execution."""
+        llm = MagicMock()
+
+        def _stream(messages, tools=None):
+            call_count = len([m for m in messages if m.role == "user" and "Tool results" in m.content])
+            if call_count == 0:
+                yield LLMResponse(
+                    content="Writing...",
+                    tool_calls=[ToolCall(name="write", arguments={"path": "a.py", "content": "x=1"})],
+                )
+            else:
+                yield "Saved."
+                yield LLMResponse(content="Saved.", tool_calls=[])
+
+        llm.chat_stream.side_effect = _stream
+
+        loop = _make_loop(llm)
+        loop.tools.execute.return_value = {"status": "ok"}
+        events = [c for c in loop.run_turn_stream("Save file") if isinstance(c, StatusEvent)]
+
+        kinds = [e.kind for e in events]
+        assert "tool_done" in kinds, "Should emit 'tool_done' after tool execution"
+        # tool_done must come after tool_start
+        ts_idx = kinds.index("tool_start")
+        td_idx = kinds.index("tool_done")
+        assert td_idx > ts_idx

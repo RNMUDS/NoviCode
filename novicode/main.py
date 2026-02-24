@@ -23,7 +23,7 @@ from novicode.validator import Validator
 from novicode.tool_registry import ToolRegistry
 from novicode.session_manager import SessionManager
 from novicode.metrics import Metrics
-from novicode.agent_loop import AgentLoop
+from novicode.agent_loop import AgentLoop, StatusEvent
 from novicode.curriculum import Level
 from novicode.progress import ProgressTracker
 from novicode.challenges import (
@@ -33,6 +33,7 @@ from novicode.challenges import (
     Challenge,
 )
 from novicode.formatter import StreamFormatter
+from novicode.spinner import Spinner
 
 
 # ── ANSI color constants ─────────────────────────────────────
@@ -208,7 +209,8 @@ def main() -> None:
 
     # ── Interactive loop ────────────────────────────────────────
     _BOX_W = 48
-    _BOX_TOP = f"{_DIM}╭{'─' * _BOX_W}{_RESET}"
+    _BOX_HINT = f" {_DIM}Enter: 改行  Ctrl+D: 送信{_RESET}"
+    _BOX_TOP = f"{_DIM}╭{'─' * _BOX_W}{_RESET}{_BOX_HINT}"
     _BOX_BOT = f"{_DIM}╰{'─' * _BOX_W}{_RESET}"
     _BOX_L   = f"{_DIM}│{_RESET}"
     _PROMPT_FIRST = f"{_BOX_L} {_GREEN}{_BOLD}You>{_RESET} "
@@ -294,24 +296,37 @@ def main() -> None:
             # Run agent turn (streaming with syntax highlighting)
             fmt = StreamFormatter()
             header_shown = False
-            for chunk in loop.run_turn_stream(user_input):
-                output = fmt.feed(chunk)
-                if output:
+            spinner = Spinner()
+            try:
+                for chunk in loop.run_turn_stream(user_input):
+                    if isinstance(chunk, StatusEvent):
+                        if chunk.kind == "thinking":
+                            spinner.start("考え中...")
+                        elif chunk.kind == "tool_start":
+                            spinner.start(f"実行中: {chunk.detail}...")
+                        elif chunk.kind == "tool_done":
+                            spinner.start("考え中...")
+                        continue
+                    spinner.stop()
+                    output = fmt.feed(chunk)
+                    if output:
+                        if not header_shown:
+                            sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
+                            header_shown = True
+                        sys.stdout.write(output)
+                        sys.stdout.flush()
+                remaining = fmt.flush()
+                if remaining:
                     if not header_shown:
                         sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
                         header_shown = True
-                    sys.stdout.write(output)
+                    sys.stdout.write(remaining)
                     sys.stdout.flush()
-            remaining = fmt.flush()
-            if remaining:
-                if not header_shown:
-                    sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
-                    header_shown = True
-                sys.stdout.write(remaining)
-                sys.stdout.flush()
-            if header_shown:
-                sys.stdout.write("\n\n")
-                sys.stdout.flush()
+                if header_shown:
+                    sys.stdout.write("\n\n")
+                    sys.stdout.flush()
+            finally:
+                spinner.stop()
 
     except KeyboardInterrupt:
         print("\nInterrupted.")
