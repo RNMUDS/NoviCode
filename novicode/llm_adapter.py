@@ -35,7 +35,10 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "bash",
-            "description": "Execute a bash command",
+            "description": (
+                "Execute a shell command. Use this to run code: `python file.py`. "
+                "You MUST use this tool to execute code — never guess or fabricate output."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -49,7 +52,9 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "read",
-            "description": "Read a file",
+            "description": (
+                "Read file contents. Use this to check existing files before editing."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -63,7 +68,10 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "write",
-            "description": "Write content to a file",
+            "description": (
+                "Create or overwrite a file. You MUST use this tool to save code — "
+                "never output code as plain text in your response."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -78,7 +86,10 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "edit",
-            "description": "Edit a file by replacing old text with new text",
+            "description": (
+                "Replace text in an existing file. "
+                "Use this for small modifications to code you already wrote."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {

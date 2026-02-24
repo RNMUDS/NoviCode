@@ -9,6 +9,7 @@ from novicode.config import (
     SCOPE_DESCRIPTION,
     ModeProfile,
     LanguageFamily,
+    MODE_LANGUAGE,
 )
 from novicode.curriculum import Level, build_education_prompt
 
@@ -82,11 +83,28 @@ class PolicyEngine:
     def build_system_prompt(self) -> str:
         """Return the full system prompt for the active mode, including education."""
         base = self.profile.system_prompt
+        lang = MODE_LANGUAGE.get(self.profile.mode, LanguageFamily.PYTHON)
+
+        if lang == LanguageFamily.PYTHON:
+            tool_rules = (
+                "- コードは必ず write 関数を呼び出してファイルに保存すること。"
+                "コードをテキストとして返答に含めてはいけない。\n"
+                "- コードの実行は必ず bash 関数を呼び出して行うこと（例: bash で `python ファイル名.py`）。"
+                "実行結果を推測・捏造してはいけない。\n"
+            )
+        else:
+            tool_rules = (
+                "- コードは必ず write 関数を呼び出してファイルに保存すること。"
+                "コードをテキストとして返答に含めてはいけない。\n"
+                "- Web モードでは bash は使えない。ファイル保存後「ブラウザで開いてください」と案内する。\n"
+            )
+
         constraint = (
             "\n\n【制約】\n"
             "- このモードで許可された言語・ライブラリだけを使う。\n"
             "- 1回の返答のコードは最大10行。短く保つ。\n"
             "- ネットワーク通信・パッケージ追加は禁止。\n"
+            f"{tool_rules}"
         )
 
         education = build_education_prompt(

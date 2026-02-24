@@ -46,6 +46,35 @@ class TestFileExtension:
         assert not web_policy.check_file_extension("test.py").allowed
 
 
+class TestSystemPromptToolRules:
+    """Verify build_system_prompt includes tool usage rules."""
+
+    def test_python_prompt_contains_write_function(self, python_policy):
+        prompt = python_policy.build_system_prompt()
+        assert "write 関数" in prompt, "Python prompt should mention write 関数"
+
+    def test_python_prompt_contains_bash_function(self, python_policy):
+        prompt = python_policy.build_system_prompt()
+        assert "bash 関数" in prompt, "Python prompt should mention bash 関数"
+
+    def test_web_prompt_contains_write_function(self, web_policy):
+        prompt = web_policy.build_system_prompt()
+        assert "write 関数" in prompt, "Web prompt should mention write 関数"
+
+    def test_web_prompt_contains_bash_unavailable(self, web_policy):
+        prompt = web_policy.build_system_prompt()
+        assert "bash は使えない" in prompt, "Web prompt should say bash is unavailable"
+
+    def test_web_prompt_bash_unavailable_overrides_generic(self, web_policy):
+        """Web prompt should contain 'bash は使えない' constraint even though
+        the shared education template mentions bash 関数 generically."""
+        prompt = web_policy.build_system_prompt()
+        # The constraint section explicitly says bash is unavailable
+        assert "bash は使えない" in prompt
+        # And the constraint mentions using the browser instead
+        assert "ブラウザ" in prompt
+
+
 class TestScopeCheck:
     def test_rejects_rust(self, python_policy):
         assert not python_policy.check_scope("Write me a Rust program").allowed

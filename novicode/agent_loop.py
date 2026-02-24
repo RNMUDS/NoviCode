@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections.abc import Iterator
 
@@ -16,6 +17,22 @@ from novicode.session_manager import Session
 from novicode.metrics import Metrics
 from novicode.curriculum import extract_concepts
 from novicode.progress import ProgressTracker
+
+
+_CODE_BLOCK_RE = re.compile(r"```\w*\n")
+
+_TOOL_NUDGE = (
+    "あなたの応答にコードブロックが含まれていますが、ツールが使われていません。\n"
+    "コードは必ず write ツールでファイルに保存してください。\n"
+    "コードをテキストとして表示するのではなく、write 関数を呼び出してください。"
+)
+
+_MAX_NUDGES_PER_TURN = 2
+
+
+def _has_code_block(text: str) -> bool:
+    """Return True if text contains a fenced code block."""
+    return bool(_CODE_BLOCK_RE.search(text))
 
 
 class AgentLoop:
@@ -53,6 +70,7 @@ class AgentLoop:
     def run_turn(self, user_input: str) -> str:
         """Process one user turn (may involve multiple LLM iterations)."""
         self._educational_messages: list[str] = []
+        nudge_count = 0
 
         # Scope check
         scope = self.policy.check_scope(user_input)
@@ -75,8 +93,18 @@ class AgentLoop:
             if self.debug:
                 print(f"  [iter {i+1}] content={response.content[:80]}... tools={len(response.tool_calls)}")
 
-            # No tool calls → validate and return text
+            # No tool calls → check for code blocks in text, then validate
             if not response.tool_calls:
+                # Nudge: LLM output code as text instead of using tools
+                if _has_code_block(response.content) and nudge_count < _MAX_NUDGES_PER_TURN:
+                    nudge_count += 1
+                    self._log("nudge", {"reason": "code_block_without_tool", "count": nudge_count})
+                    self.messages.append(Message(role="assistant", content=response.content))
+                    self.messages.append(Message(role="user", content=_TOOL_NUDGE))
+                    if self.debug:
+                        print(f"  [nudge {nudge_count}] code block detected without tool call")
+                    continue
+
                 validation = self.validator.validate(response.content, "response.py")
                 if not validation.valid:
                     self._log("violation", {"violations": [v.__dict__ for v in validation.violations]})
@@ -133,6 +161,7 @@ class AgentLoop:
         and level-up notifications are yielded before the LLM response.
         """
         self._educational_messages: list[str] = []
+        nudge_count = 0
 
         # Scope check
         scope = self.policy.check_scope(user_input)
@@ -175,8 +204,19 @@ class AgentLoop:
                 "content": response.content, "tools": len(response.tool_calls)
             })
 
-            # No tool calls → validate
+            # No tool calls → check for code blocks, then validate
             if not response.tool_calls:
+                # Nudge: LLM output code as text instead of using tools
+                if _has_code_block(response.content) and nudge_count < _MAX_NUDGES_PER_TURN:
+                    nudge_count += 1
+                    self._log("nudge", {"reason": "code_block_without_tool", "count": nudge_count})
+                    self.messages.append(Message(role="assistant", content=response.content))
+                    self.messages.append(Message(role="user", content=_TOOL_NUDGE))
+                    if self.debug:
+                        print(f"  [nudge {nudge_count}] code block detected without tool call")
+                    is_first_text_iter = False
+                    continue
+
                 validation = self.validator.validate(response.content, "response.py")
                 if not validation.valid:
                     self._log("violation", {

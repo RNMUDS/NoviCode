@@ -174,3 +174,39 @@ class TestEducationPrompt:
             mastered_concepts=set(),
         )
         assert "（なし）" in prompt
+
+
+class TestEducationPromptToolExpressions:
+    """Verify the education prompt uses correct tool-related expressions."""
+
+    def test_contains_write_function_call(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "write 関数を呼び出して" in prompt, (
+            "Prompt should instruct to call write 関数"
+        )
+
+    def test_contains_bash_function_call(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "bash 関数を呼び出して" in prompt, (
+            "Prompt should instruct to call bash 関数"
+        )
+
+    def test_no_old_write_expression(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "黙ってwriteツールを使う" not in prompt, (
+            "Old expression '黙ってwriteツールを使う' should be removed"
+        )
+
+    def test_no_old_bash_expression(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "黙ってbashツールを使う" not in prompt, (
+            "Old expression '黙ってbashツールを使う' should be removed"
+        )
+
+    def test_all_modes_have_write_expression(self):
+        """All modes should mention write 関数を呼び出して in their prompt."""
+        for mode in Mode:
+            prompt = build_education_prompt(mode, Level.BEGINNER)
+            assert "write 関数を呼び出して" in prompt, (
+                f"Mode {mode.value} should contain 'write 関数を呼び出して'"
+            )
