@@ -127,6 +127,12 @@ class TestEducationPrompt:
         assert "1ステップだけ" in prompt
         assert "初級" in prompt
         assert "Python" in prompt
+        assert "バイブコーディング" in prompt
+        assert "予測" in prompt
+
+    def test_beginner_prompt_no_old_phrases(self):
+        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
+        assert "動かしてみてください" not in prompt
 
     def test_intermediate_prompt_contains_additions(self):
         prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.INTERMEDIATE)
@@ -162,6 +168,9 @@ class TestEducationPrompt:
         prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
         assert "（なし）" in prompt
 
-    def test_beginner_prompt_requires_code_fence(self):
-        prompt = build_education_prompt(Mode.PYTHON_BASIC, Level.BEGINNER)
-        assert "```" in prompt
+    def test_mastered_concepts_empty_set(self):
+        prompt = build_education_prompt(
+            Mode.PYTHON_BASIC, Level.BEGINNER,
+            mastered_concepts=set(),
+        )
+        assert "（なし）" in prompt

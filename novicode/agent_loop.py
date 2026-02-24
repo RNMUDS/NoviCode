@@ -266,6 +266,8 @@ class AgentLoop:
             self.metrics.concepts_taught.extend(concepts)
             self._log("concepts", {"found": concepts})
 
+            cur_mastered = self.progress.mastered_concepts()
+
             # Check for level-up
             new_level = self.progress.update_level()
             if new_level is not None:
@@ -279,15 +281,15 @@ class AgentLoop:
                 self._educational_messages.append(msg)
                 self._log("level_up", {"new_level": new_level.value})
                 self.policy.level = new_level
-                self.progress.save()
 
-            # Rebuild system prompt if mastered concepts changed
-            current_mastered = self.progress.mastered_concepts()
-            if current_mastered != prev_mastered:
-                self.policy.mastered_concepts = current_mastered
+            # Rebuild system prompt when mastered concepts change
+            cur_mastered = self.progress.mastered_concepts()
+            if cur_mastered != prev_mastered or new_level is not None:
+                self.policy.mastered_concepts = cur_mastered
                 self.messages[0] = Message(
                     role="system", content=self.policy.build_system_prompt()
                 )
+                self.progress.save()
 
     def restore_messages(self, messages: list[Message]) -> None:
         """Restore conversation history (for session resume)."""

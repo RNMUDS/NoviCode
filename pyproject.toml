@@ -9,6 +9,7 @@ description = "Vibe coding tool specialized for learning programming and app dev
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
+dependencies = ["pygments>=2.17"]
 keywords = ["ai", "coding-agent", "education", "curriculum", "ollama"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,7 +22,6 @@ classifiers = [
     "Topic :: Education",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["pygments>=2.17"]
 
 [project.scripts]
 novicode = "novicode.main:main"
