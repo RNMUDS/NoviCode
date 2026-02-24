@@ -32,5 +32,8 @@ include = ["novicode*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[project.optional-dependencies]
+py5 = ["py5>=0.8"]
+
 [dependency-groups]
 dev = ["pytest>=8.0"]

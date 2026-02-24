@@ -125,6 +125,16 @@ def main() -> None:
         sys.exit(1)
 
     mode = Mode(args.mode)
+
+    # ── PY5 モード: py5 インポートチェック ─────────────────────
+    if mode == Mode.PY5:
+        try:
+            import py5  # noqa: F401
+        except ImportError:
+            print("Error: py5 がインストールされていません。")
+            print("  uv sync --extra py5")
+            sys.exit(1)
+
     profile = build_mode_profile(mode)
     ram_gb = get_system_ram_gb()
 
