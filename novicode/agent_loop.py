@@ -34,11 +34,20 @@ _TOOL_NUDGE_AFTER_WRITE = (
     "「このコードを実行すると、どんな結果になると思いますか？」の質問だけを書いてください。"
 )
 
-_WRITE_TOOL_REMINDER = (
-    "\n\n【重要】コードはファイルに保存済みです。"
-    "返答にコードを書かないでください（``` は禁止）。"
-    "コードの説明（箇条書き2〜3個）と予測質問だけを書いてください。"
-)
+def _build_write_reminder(tool_calls: list, tool_results: list[dict]) -> str:
+    """Build a reminder message with actual file paths from write/edit results."""
+    paths = [
+        r.get("path", "")
+        for tc, r in zip(tool_calls, tool_results)
+        if tc.name in ("write", "edit") and r.get("path")
+    ]
+    path_str = "、".join(f"`{p}`" for p in paths) if paths else "ファイル"
+    return (
+        f"\n\n【重要】コードは {path_str} に保存済みです。"
+        "返答にコードを書かないでください（``` は禁止）。"
+        "コードの説明（箇条書き2〜3個）と予測質問だけを書いてください。"
+        f"ユーザーがコードを見たいと言ったら read ツールで {path_str} を読んでください。"
+    )
 
 _MAX_NUDGES_PER_TURN = 2
 
@@ -150,7 +159,7 @@ class AgentLoop:
                 write_used = True
             result_msg = f"Tool results:\n{tool_summary}"
             if has_write:
-                result_msg += _WRITE_TOOL_REMINDER
+                result_msg += _build_write_reminder(response.tool_calls, tool_results)
             self.messages.append(Message(role="user", content=result_msg))
 
             # Validate any write/edit output
@@ -264,20 +273,23 @@ class AgentLoop:
                 self._track_concepts(response.content)
                 break
 
-            # Tool calls path — yield buffered text, then execute tools
-            for chunk in streamed_chunks:
-                yield chunk
+            # Tool calls path — execute tools, suppress text if write/edit
+            # (write responses often echo code in text; the follow-up iter
+            #  provides the clean explanation, so we skip this text)
+            has_write = any(tc.name in ("write", "edit") for tc in response.tool_calls)
+            if not has_write:
+                for chunk in streamed_chunks:
+                    yield chunk
             self.messages.append(
                 Message(role="assistant", content=response.content)
             )
             tool_results = self._execute_tools(response)
             tool_summary = json.dumps(tool_results, ensure_ascii=False)
-            has_write = any(tc.name in ("write", "edit") for tc in response.tool_calls)
             if has_write:
                 write_used = True
             result_msg = f"Tool results:\n{tool_summary}"
             if has_write:
-                result_msg += _WRITE_TOOL_REMINDER
+                result_msg += _build_write_reminder(response.tool_calls, tool_results)
             self.messages.append(Message(role="user", content=result_msg))
 
             for tc, result in zip(response.tool_calls, tool_results):
