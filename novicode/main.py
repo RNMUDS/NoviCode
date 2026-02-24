@@ -34,15 +34,42 @@ from novicode.challenges import (
 from novicode.formatter import StreamFormatter
 
 
-BANNER = r"""
- _   _            _  ____          _
-| \ | | _____   _(_)/ ___|___   __| | ___
-|  \| |/ _ \ \ / / | |   / _ \ / _` |/ _ \
-| |\  | (_) \ V /| | |__| (_) | (_| |  __/
-|_| \_|\___/ \_/ |_|\____\___/ \__,_|\___|
+# ── ANSI color constants ─────────────────────────────────────
+_GREEN = "\033[38;2;118;185;0m"   # NVIDIA Green #76B900
+_BOLD  = "\033[1m"
+_DIM   = "\033[90m"
+_WHITE = "\033[97m"
+_RESET = "\033[0m"
 
-  NoviCode — プログラミング学習に特化したコーディングツール v0.2.0
-"""
+# Gradient: bright lime → NVIDIA green → deep emerald (top → bottom)
+_GRADIENT = [
+    "\033[38;2;166;227;34m",   # #A6E322  bright lime
+    "\033[38;2;142;206;17m",   # #8ECE11
+    "\033[38;2;118;185;0m",    # #76B900  NVIDIA Green
+    "\033[38;2;94;164;0m",     # #5EA400
+    "\033[38;2;70;143;0m",     # #468F00
+    "\033[38;2;50;122;0m",     # #327A00  deep emerald
+]
+
+_BANNER_LINES = [
+    " ███╗   ██╗ ██████╗ ██╗   ██╗██╗ ██████╗ ██████╗ ██████╗ ███████╗",
+    " ████╗  ██║██╔═══██╗██║   ██║██║██╔════╝██╔═══██╗██╔══██╗██╔════╝",
+    " ██╔██╗ ██║██║   ██║██║   ██║██║██║     ██║   ██║██║  ██║█████╗  ",
+    " ██║╚██╗██║██║   ██║╚██╗ ██╔╝██║██║     ██║   ██║██║  ██║██╔══╝  ",
+    " ██║ ╚████║╚██████╔╝ ╚████╔╝ ██║╚██████╗╚██████╔╝██████╔╝███████╗",
+    " ╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝",
+]
+
+BANNER = (
+    "\n"
+    + "\n".join(
+        f"{_BOLD}{c}{line}{_RESET}"
+        for c, line in zip(_GRADIENT, _BANNER_LINES)
+    )
+    + "\n"
+    + f"{_DIM}  🎓 P R O G R A M M I N G   L E A R N I N G   A G E N T 🎓{_RESET}\n"
+    + f"{_DIM}  v0.2.0 // Offline • Local LLM • Powered by Ollama{_RESET}\n"
+)
 
 INTERACTIVE_HELP = """
 Commands:
@@ -107,13 +134,19 @@ def main() -> None:
 
     level_ja = {"beginner": "初級", "intermediate": "中級", "advanced": "上級"}
 
+    sep = f"{_DIM}  {'─' * 48}{_RESET}"
     print(BANNER)
-    print(f"  Model   : {model_name}")
-    print(f"  Mode    : {mode.value}")
-    print(f"  Level   : {level_ja.get(level.value, level.value)} ({level.value})")
-    print(f"  RAM     : {ram_gb:.1f} GB")
-    print(f"  Research: {'ON' if args.research else 'OFF'}")
-    print(f"  WorkDir : {WORKING_DIR}")
+    print(sep)
+    print(f"  {_GREEN}🧠 Model{_RESET}   {_WHITE}{model_name}{_RESET}")
+    print(f"  {_GREEN}📚 Mode{_RESET}    {_WHITE}{mode.value}{_RESET}")
+    print(f"  {_GREEN}🎯 Level{_RESET}   {_WHITE}{level_ja.get(level.value, level.value)} ({level.value}){_RESET}")
+    print(f"  {_GREEN}💾 RAM{_RESET}     {_WHITE}{ram_gb:.1f} GB{_RESET}")
+    print(f"  {_GREEN}📁 WorkDir{_RESET} {_WHITE}{WORKING_DIR}{_RESET}")
+    print(f"  {_GREEN}🔬 Research{_RESET} {_WHITE}{'ON' if args.research else 'OFF'}{_RESET}")
+    print(sep)
+    print()
+    print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}Ctrl+D{_RESET}{_WHITE} で送信（複数行OK）{_RESET}")
+    print(f"  {_GREEN}📝 コマンド{_RESET} {_DIM}/help{_RESET} 一覧  {_DIM}/exit{_RESET} 終了  {_DIM}/challenge{_RESET} 練習問題  {_DIM}/progress{_RESET} 進捗")
     print()
 
     # ── Initialize components ───────────────────────────────────
@@ -127,13 +160,13 @@ def main() -> None:
     if args.resume:
         try:
             session = sm.load(args.resume)
-            print(f"  Resumed session: {session.meta.session_id}")
+            print(f"  {_GREEN}🆔 Session{_RESET} {_WHITE}{session.meta.session_id} (resumed){_RESET}")
         except FileNotFoundError:
             print(f"Session not found: {args.resume}")
             sys.exit(1)
     else:
         session = sm.create(model_name, mode.value, research=args.research)
-        print(f"  Session : {session.meta.session_id}")
+        print(f"  {_GREEN}🆔 Session{_RESET} {_WHITE}{session.meta.session_id}{_RESET}")
 
     tools = ToolRegistry(security, policy, profile, WORKING_DIR)
     loop = AgentLoop(
@@ -156,19 +189,27 @@ def main() -> None:
         print(f"  Run: ollama pull {model_name}")
         print()
 
-    print(f"\n  Type /help for commands. Start coding!\n")
+    print()  # blank line before prompt
 
     # ── Track current challenge for /hint ───────────────────────
     current_challenge: Challenge | None = None
 
     # ── Interactive loop ────────────────────────────────────────
+    _PROMPT_FIRST = f"{_GREEN}{_BOLD}You>{_RESET} "
+    _PROMPT_CONT  = f"{_DIM}  ..{_RESET}  "
+
     try:
         while True:
+            # Multi-line input: Enter = newline, Ctrl+D = send
+            lines: list[str] = []
             try:
-                user_input = input("You> ").strip()
+                while True:
+                    lines.append(input(_PROMPT_FIRST if not lines else _PROMPT_CONT))
             except EOFError:
-                break
+                if not lines:
+                    break  # Ctrl+D with no input → exit
 
+            user_input = "\n".join(lines).strip()
             if not user_input:
                 continue
 
@@ -238,14 +279,14 @@ def main() -> None:
                 output = fmt.feed(chunk)
                 if output:
                     if not header_shown:
-                        sys.stdout.write("\nAssistant>\n")
+                        sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
                         header_shown = True
                     sys.stdout.write(output)
                     sys.stdout.flush()
             remaining = fmt.flush()
             if remaining:
                 if not header_shown:
-                    sys.stdout.write("\nAssistant>\n")
+                    sys.stdout.write(f"\n{_WHITE}{_BOLD}Assistant>{_RESET}\n")
                     header_shown = True
                 sys.stdout.write(remaining)
                 sys.stdout.flush()
