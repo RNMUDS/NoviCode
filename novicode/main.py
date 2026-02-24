@@ -126,14 +126,38 @@ def main() -> None:
 
     mode = Mode(args.mode)
 
-    # ── PY5 モード: py5 インポートチェック ─────────────────────
+    # ── PY5 モード: py5 自動インストール ────────────────────────
     if mode == Mode.PY5:
         try:
             import py5  # noqa: F401
         except ImportError:
-            print("Error: py5 がインストールされていません。")
-            print("  uv sync --extra py5")
-            sys.exit(1)
+            import importlib
+            import shutil
+            import subprocess
+
+            print("py5 が見つかりません。インストールしています...")
+            uv = shutil.which("uv")
+            if not uv:
+                print("Error: uv が見つかりません。")
+                print("  手動で実行してください: uv sync --extra py5")
+                sys.exit(1)
+            result = subprocess.run(
+                [uv, "sync", "--extra", "py5"],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                print("Error: py5 のインストールに失敗しました。")
+                print("  手動で実行してください: uv sync --extra py5")
+                if result.stderr:
+                    print(result.stderr)
+                sys.exit(1)
+            print("py5 をインストールしました。")
+            importlib.invalidate_caches()
+            try:
+                import py5  # noqa: F401
+            except ImportError:
+                print("py5 のインポートに失敗しました。再起動します...")
+                os.execv(sys.executable, [sys.executable] + sys.argv)
 
     profile = build_mode_profile(mode)
     ram_gb = get_system_ram_gb()
