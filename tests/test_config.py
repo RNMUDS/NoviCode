@@ -12,6 +12,7 @@ from novicode.config import (
 
 
 def test_validate_model_accepts_supported():
+    assert validate_model("gpt-oss-swallow:20b-rl") == "gpt-oss-swallow:20b-rl"
     assert validate_model("qwen3:8b") == "qwen3:8b"
     assert validate_model("qwen3-coder:30b") == "qwen3-coder:30b"
 

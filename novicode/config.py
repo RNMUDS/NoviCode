@@ -12,6 +12,11 @@ from typing import FrozenSet
 # ── Supported models ────────────────────────────────────────────────
 
 SUPPORTED_MODELS: dict[str, dict] = {
+    "gpt-oss-swallow:20b-rl": {
+        "min_ram_gb": 16,
+        "context_length": 32768,
+        "description": "GPT-OSS-Swallow 20B RL — bilingual JP/EN, Q4_K_M quantized",
+    },
     "qwen3:8b": {
         "min_ram_gb": 8,
         "context_length": 8192,
@@ -44,10 +49,7 @@ def get_system_ram_gb() -> float:
 
 def auto_select_model() -> str:
     """Pick the best supported model based on available RAM."""
-    ram = get_system_ram_gb()
-    if ram >= RAM_THRESHOLD_GB:
-        return "qwen3-coder:30b"
-    return "qwen3:8b"
+    return "gpt-oss-swallow:20b-rl"
 
 
 def validate_model(name: str) -> str:
