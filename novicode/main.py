@@ -92,7 +92,7 @@ Keybinds:
   Enter        — 改行（複数行入力）
   Shift+Enter  — 送信
   Ctrl+D       — 送信（フォールバック）
-  ESC          — 終了
+  Ctrl+C       — 中断
 """
 
 
@@ -303,7 +303,7 @@ def main() -> None:
     print(f"  {_GREEN}📁 WorkDir{_RESET} {_WHITE}{WORKING_DIR}{_RESET}")
     print(sep)
     print()
-    print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}空行+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}ESC: 終了  Ctrl+D: 送信{_RESET}")
+    print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}空行+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}/exit: 終了  Ctrl+D: 送信{_RESET}")
     print(f"  {_GREEN}📝 コマンド{_RESET} {_DIM}/help{_RESET} 一覧  {_DIM}/exit{_RESET} 終了  {_DIM}/challenge{_RESET} 練習問題  {_DIM}/progress{_RESET} 進捗")
 
     # ── Initialize components ───────────────────────────────────
@@ -365,7 +365,7 @@ def main() -> None:
     _PROMPT_FIRST = f"{_BOX_L} {_GREEN}{_BOLD}You>{_RESET} "
     _PROMPT_CONT  = f"{_BOX_L} {_DIM}  ..{_RESET}  "
 
-    _BOX_HINT = f" {_DIM}Enter: 改行  空Enter: 送信  ESC: 終了{_RESET}"
+    _BOX_HINT = f" {_DIM}Enter: 改行  空Enter: 送信  /exit: 終了{_RESET}"
     _BOX_TOP = f"{_DIM}╭{'─' * _BOX_W}{_RESET}{_BOX_HINT}"
 
     reader = InputReader(
