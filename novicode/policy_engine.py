@@ -104,6 +104,11 @@ class PolicyEngine:
         tool_section = (
             "\n\n【ツール使用ルール（最重要）】\n"
             f"{tool_rules}"
+            "- ツール名（write, read, bash, edit, grep, glob）を"
+            "ユーザーへの返答に含めてはいけない。\n"
+            "  例: ×「write 関数で保存します」→ ○「保存します」\n"
+            "  例: ×「bash で実行します」→ ○「実行します」\n"
+            "  ツールは黙って使い、ユーザーには結果だけ伝える。\n"
         )
 
         constraint = (

@@ -108,7 +108,7 @@ def _build_write_reminder(tool_calls: list, tool_results: list[dict]) -> str:
         f"\n\n【重要】コードは {path_str} に保存済みです。"
         "返答にコードを書かないでください（``` は禁止）。"
         "コードの説明（箇条書き2〜3個）と「実行してみましょうか？」の質問だけを書いてください。"
-        f"ユーザーがコードを見たいと言ったら read ツールで {path_str} を読んでください。"
+        "ツール名（write, read, bash 等）を返答に含めないでください。"
     )
 
 _MAX_NUDGES_PER_TURN = 2
