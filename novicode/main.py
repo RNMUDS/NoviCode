@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import sys
 import time
 
@@ -302,7 +301,6 @@ def main() -> None:
     print(f"  {_GREEN}🎯 Level{_RESET}   {_WHITE}{level_ja.get(level.value, level.value)} ({level.value}){_RESET}")
     print(f"  {_GREEN}💾 RAM{_RESET}     {_WHITE}{ram_gb:.1f} GB{_RESET}")
     print(f"  {_GREEN}📁 WorkDir{_RESET} {_WHITE}{WORKING_DIR}{_RESET}")
-    print(f"  {_GREEN}🔬 Research{_RESET} {_WHITE}{'ON' if args.research else 'OFF'}{_RESET}")
     print(sep)
     print()
     print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}空行+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}ESC: 終了  Ctrl+D: 送信{_RESET}")
@@ -449,39 +447,15 @@ def main() -> None:
                     continue
 
                 # Run agent turn (streaming with syntax highlighting)
-                # Suspend raw mode so Ctrl+C generates SIGINT during LLM calls
+                # Suspend raw mode so Ctrl+C generates SIGINT.
+                # Socket reads run in a daemon thread (see LLMAdapter),
+                # so the main thread polls a queue and stays responsive.
                 reader.suspend()
-
-                # Double Ctrl+C → force exit (safety net for hung sockets)
-                _ctrl_c_count = 0
-
-                def _sigint_during_llm(sig, frame):
-                    nonlocal _ctrl_c_count
-                    _ctrl_c_count += 1
-                    if _ctrl_c_count >= 2:
-                        spinner.stop()
-                        reader.resume()
-                        sys.stdout.write(f"\n  {_DIM}(強制終了){_RESET}\n")
-                        sys.stdout.flush()
-                        os._exit(1)
-                    raise KeyboardInterrupt
-
-                # SIGALRM handler for hard timeout
-                def _alarm_handler(sig, frame):
-                    raise TimeoutError("LLM が応答しません（タイムアウト）")
-
-                prev_sigint = signal.getsignal(signal.SIGINT)
-                prev_sigalrm = signal.getsignal(signal.SIGALRM)
-                signal.signal(signal.SIGINT, _sigint_during_llm)
-                signal.signal(signal.SIGALRM, _alarm_handler)
-
                 fmt = StreamFormatter()
                 header_shown = False
                 spinner = Spinner()
                 try:
-                    signal.alarm(180)  # 3 min hard ceiling
                     for chunk in loop.run_turn_stream(user_input):
-                        signal.alarm(180)  # reset on each chunk
                         if isinstance(chunk, StatusEvent):
                             if chunk.kind == "thinking":
                                 spinner.start("考え中...  (Ctrl+C: 中断)")
@@ -522,9 +496,6 @@ def main() -> None:
                     sys.stdout.write(f"\n  {_DIM}⚠ {exc}{_RESET}\n\n")
                     sys.stdout.flush()
                 finally:
-                    signal.alarm(0)  # cancel alarm
-                    signal.signal(signal.SIGINT, prev_sigint)
-                    signal.signal(signal.SIGALRM, prev_sigalrm)
                     spinner.stop()
                     reader.resume()
 

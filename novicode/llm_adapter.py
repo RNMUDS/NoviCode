@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import queue
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -13,6 +15,7 @@ from novicode.config import OLLAMA_BASE_URL
 
 _MAX_CONNECT_RETRIES = 3
 _RETRY_DELAY = 2.0  # seconds between retries
+_QUEUE_POLL_INTERVAL = 0.5  # seconds — how often the main thread wakes to check signals
 
 
 @dataclass
@@ -137,6 +140,25 @@ TOOL_DEFINITIONS = [
 ]
 
 
+def _stream_reader(resp: object, q: queue.Queue) -> None:
+    """Read lines from an HTTP response in a background thread.
+
+    Puts ``("line", bytes)`` for each line, ``("done", None)`` on
+    completion, or ``("error", exc)`` on failure.
+    """
+    try:
+        for raw_line in resp:
+            q.put(("line", raw_line))
+        q.put(("done", None))
+    except Exception as exc:
+        q.put(("error", exc))
+    finally:
+        try:
+            resp.close()
+        except Exception:
+            pass
+
+
 class LLMAdapter:
     """Sends chat requests to a local Ollama instance."""
 
@@ -172,6 +194,37 @@ class LLMAdapter:
             f"  確認: ollama serve が起動しているか / ollama pull {self.model}"
         ) from last_exc
 
+    def _open_chat(
+        self,
+        payload: dict,
+        timeout: float = 300,
+    ) -> "http.client.HTTPResponse":
+        """Open /api/chat with automatic tool-fallback on HTTP 400."""
+        body = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            return self._open_with_retry(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 400 and "tools" in payload:
+                # Model likely doesn't support tool calling — retry without
+                payload.pop("tools", None)
+                body2 = json.dumps(payload).encode()
+                req2 = urllib.request.Request(
+                    f"{self.base_url}/api/chat",
+                    data=body2,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                return self._open_with_retry(req2, timeout=timeout)
+            raise ConnectionError(
+                f"Ollama エラー (HTTP {exc.code}): {exc.reason}"
+            ) from exc
+
     def chat(
         self,
         messages: list[Message],
@@ -186,33 +239,8 @@ class LLMAdapter:
         if tools:
             payload["tools"] = tools
 
-        body = json.dumps(payload).encode()
-        req = urllib.request.Request(
-            f"{self.base_url}/api/chat",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with self._open_with_retry(req) as resp:
-                data = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            if exc.code == 400 and tools:
-                # Model likely doesn't support tool calling — retry without tools
-                payload.pop("tools", None)
-                body2 = json.dumps(payload).encode()
-                req2 = urllib.request.Request(
-                    f"{self.base_url}/api/chat",
-                    data=body2,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with self._open_with_retry(req2) as resp:
-                    data = json.loads(resp.read().decode())
-            else:
-                raise ConnectionError(
-                    f"Ollama エラー (HTTP {exc.code}): {exc.reason}"
-                ) from exc
+        with self._open_chat(payload) as resp:
+            data = json.loads(resp.read().decode())
 
         return self._parse_response(data)
 
@@ -220,20 +248,12 @@ class LLMAdapter:
         self,
         messages: list[Message],
         tools: list[dict] | None = None,
-        chunk_timeout: float = 120.0,
     ) -> Iterator[str | LLMResponse]:
         """Stream a chat completion from Ollama.
 
-        Yields:
-            str: content chunks as they arrive
-            LLMResponse: final complete response (always the last item)
-
-        Parameters
-        ----------
-        chunk_timeout:
-            Maximum seconds to wait for the next chunk of data.
-            If no data arrives within this window, a ``TimeoutError``
-            is raised so the caller can abort gracefully.
+        Yields ``str`` chunks as they arrive, followed by a final
+        :class:`LLMResponse`.  The socket reading runs in a daemon thread
+        so the main thread stays responsive to signals (Ctrl+C).
         """
         payload = {
             "model": self.model,
@@ -243,48 +263,37 @@ class LLMAdapter:
         if tools:
             payload["tools"] = tools
 
-        body = json.dumps(payload).encode()
-        req = urllib.request.Request(
-            f"{self.base_url}/api/chat",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            resp = self._open_with_retry(req)
-        except urllib.error.HTTPError as exc:
-            if exc.code == 400 and tools:
-                # Model likely doesn't support tool calling — retry without tools
-                payload.pop("tools", None)
-                body2 = json.dumps(payload).encode()
-                req2 = urllib.request.Request(
-                    f"{self.base_url}/api/chat",
-                    data=body2,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                resp = self._open_with_retry(req2)
-            else:
-                raise ConnectionError(
-                    f"Ollama エラー (HTTP {exc.code}): {exc.reason}"
-                ) from exc
+        resp = self._open_chat(payload)
 
-        # Set a per-read timeout on the underlying socket so we don't
-        # block forever if Ollama stops sending data mid-stream.
-        sock = resp.fp.raw._sock if hasattr(resp.fp, "raw") else None
-        if sock is not None:
-            try:
-                sock.settimeout(chunk_timeout)
-            except Exception:
-                pass
+        # Read the HTTP response in a daemon thread so the main thread
+        # can always respond to signals (KeyboardInterrupt / SIGALRM).
+        q: queue.Queue = queue.Queue()
+        reader_thread = threading.Thread(
+            target=_stream_reader, args=(resp, q), daemon=True,
+        )
+        reader_thread.start()
 
         accumulated_content = ""
         tool_calls: list[ToolCall] = []
         last_data: dict = {}
 
         try:
-            for raw_line in resp:
-                line = raw_line.decode().strip()
+            while True:
+                try:
+                    kind, value = q.get(timeout=_QUEUE_POLL_INTERVAL)
+                except queue.Empty:
+                    # Main thread wakes up here — Python checks pending
+                    # signals (KeyboardInterrupt, SIGALRM) between bytecodes.
+                    continue
+
+                if kind == "done":
+                    break
+
+                if kind == "error":
+                    raise value  # type: ignore[misc]
+
+                # kind == "line"
+                line = value.decode().strip()
                 if not line:
                     continue
                 try:
@@ -311,14 +320,11 @@ class LLMAdapter:
                         except json.JSONDecodeError:
                             args = {"raw": args}
                     tool_calls.append(ToolCall(name=name, arguments=args))
-        except (TimeoutError, OSError) as exc:
-            resp.close()
-            raise TimeoutError(
-                f"Ollama did not respond for {chunk_timeout:.0f}s. "
-                "The model may be overloaded or unresponsive."
-            ) from exc
         finally:
-            resp.close()
+            try:
+                resp.close()
+            except Exception:
+                pass
 
         # Yield the final complete response
         yield LLMResponse(
