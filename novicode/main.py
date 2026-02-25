@@ -200,9 +200,7 @@ def main() -> None:
     print(f"  {_GREEN}🔬 Research{_RESET} {_WHITE}{'ON' if args.research else 'OFF'}{_RESET}")
     print(sep)
     print()
-    print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}Enter で改行、{_BOLD}Shift+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}ESC: 終了{_RESET}")
     print(f"  {_GREEN}📝 コマンド{_RESET} {_DIM}/help{_RESET} 一覧  {_DIM}/exit{_RESET} 終了  {_DIM}/challenge{_RESET} 練習問題  {_DIM}/progress{_RESET} 進捗")
-    print()
 
     # ── Initialize components ───────────────────────────────────
     security = SecurityManager(WORKING_DIR)
@@ -251,8 +249,6 @@ def main() -> None:
 
     # ── Interactive loop ────────────────────────────────────────
     _BOX_W = 48
-    _BOX_HINT = f" {_DIM}Enter: 改行  Shift+Enter: 送信  ESC: 終了{_RESET}"
-    _BOX_TOP = f"{_DIM}╭{'─' * _BOX_W}{_RESET}{_BOX_HINT}"
     _BOX_BOT = f"{_DIM}╰{'─' * _BOX_W}{_RESET}"
     _BOX_L   = f"{_DIM}│{_RESET}"
     _PROMPT_FIRST = f"{_BOX_L} {_GREEN}{_BOLD}You>{_RESET} "
@@ -261,12 +257,24 @@ def main() -> None:
     reader = InputReader(
         prompt_first=_PROMPT_FIRST,
         prompt_cont=_PROMPT_CONT,
-        box_top=_BOX_TOP,
+        box_top="",       # set dynamically after kitty detection
         box_bottom=_BOX_BOT,
     )
 
     try:
         with reader:
+            # Now that raw mode is active, kitty detection is done
+            hint = reader.send_hint
+            _BOX_HINT = f" {_DIM}{hint}{_RESET}"
+            reader.box_top = f"{_DIM}╭{'─' * _BOX_W}{_RESET}{_BOX_HINT}"
+
+            # Print usage hint (was deferred until kitty detection)
+            if reader._kitty_supported:
+                usage = f"Enter で改行、{_BOLD}Shift+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}ESC: 終了{_RESET}"
+            else:
+                usage = f"Enter で改行、{_BOLD}空行+Enter{_RESET}{_WHITE} で送信（複数行OK）  {_DIM}ESC: 終了  Ctrl+D: 送信{_RESET}"
+            print(f"  {_GREEN}💡 使い方{_RESET}  {_WHITE}{usage}")
+            print()
             while True:
                 result = reader.read_input()
 

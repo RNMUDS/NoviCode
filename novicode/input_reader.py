@@ -2,8 +2,9 @@
 
 Provides multi-line editing with:
 - Enter: newline
-- Shift+Enter: send (kitty protocol ``\\x1b[13;2u``)
-- Ctrl+D: send (fallback)
+- Shift+Enter: send (kitty protocol ``\\x1b[13;2u``) — if supported
+- Enter on empty line: send (fallback for terminals without kitty)
+- Ctrl+D: send (always works)
 - ESC: exit (bare ESC with no follow-up within 50 ms)
 - Backspace: delete character
 - Ctrl+C: raise KeyboardInterrupt
@@ -36,6 +37,7 @@ _RESET = "\033[0m"
 
 _KITTY_ENABLE = "\x1b[>1u"    # Push mode 1 (disambiguate)
 _KITTY_DISABLE = "\x1b[<u"    # Pop keyboard mode
+_KITTY_QUERY = "\x1b[?u"      # Query current keyboard mode
 
 
 def _write(s: str) -> None:
@@ -57,8 +59,18 @@ def _has_data(fd: int, timeout: float = 0.05) -> bool:
     return bool(r)
 
 
+def _drain(fd: int) -> None:
+    """Drain any pending bytes from *fd*."""
+    while _has_data(fd, 0.01):
+        os.read(fd, 256)
+
+
 class InputReader:
     """Read multi-line input from a raw terminal.
+
+    On terminals that support the kitty keyboard protocol, Shift+Enter
+    sends the input.  On other terminals (Terminal.app, iTerm2, etc.),
+    pressing Enter on an **empty line** (after content) sends instead.
 
     Parameters
     ----------
@@ -85,7 +97,14 @@ class InputReader:
         self.box_bottom = box_bottom
         self._fd = sys.stdin.fileno()
         self._old_attr: list | None = None
-        self._kitty_active = False
+        self._kitty_supported = False
+
+    @property
+    def send_hint(self) -> str:
+        """Return keybind hint text appropriate for the current terminal."""
+        if self._kitty_supported:
+            return "Enter: 改行  Shift+Enter: 送信  ESC: 終了"
+        return "Enter: 改行  空Enter: 送信  ESC: 終了"
 
     # ── Context manager ──────────────────────────────────────────
 
@@ -141,8 +160,19 @@ class InputReader:
                     return result
                 continue
 
-            # ── Enter (newline) ──────────────────────────────────
+            # ── Enter ────────────────────────────────────────────
             if ch in ("\r", "\n"):
+                # Fallback send: Enter on empty line when content exists
+                has_content = any(l.strip() for l in lines)
+                if not self._kitty_supported and has_content and lines[cur_line] == "":
+                    _write("\n")
+                    if self.box_bottom:
+                        _write(self.box_bottom + "\n")
+                    return InputResult(
+                        text="\n".join(lines[:-1]).strip(),
+                        action="send",
+                    )
+                # Normal newline
                 _write("\n")
                 lines.append("")
                 cur_line += 1
@@ -216,19 +246,32 @@ class InputReader:
             attr = termios.tcgetattr(self._fd)
             attr[1] |= termios.OPOST
             termios.tcsetattr(self._fd, termios.TCSANOW, attr)
-            # Enable kitty keyboard protocol
-            _write(_KITTY_ENABLE)
-            self._kitty_active = True
+            # Try to enable kitty keyboard protocol and probe support
+            self._kitty_supported = self._probe_kitty()
         except (OSError, termios.error):
             pass
 
+    def _probe_kitty(self) -> bool:
+        """Enable kitty keyboard protocol and check if the terminal supports it.
+
+        Sends the enable sequence followed by a query.  If the terminal
+        responds within 150 ms, kitty protocol is available.
+        """
+        _write(_KITTY_ENABLE)
+        _write(_KITTY_QUERY)
+        # A supporting terminal replies with \x1b[?{flags}u
+        if _has_data(self._fd, 0.15):
+            _drain(self._fd)
+            return True
+        return False
+
     def _disable_raw(self) -> None:
-        if self._kitty_active:
+        if self._kitty_supported:
             try:
                 _write(_KITTY_DISABLE)
             except (OSError, ValueError):
                 pass
-            self._kitty_active = False
+            self._kitty_supported = False
         if self._old_attr is not None:
             try:
                 termios.tcsetattr(self._fd, termios.TCSANOW, self._old_attr)
