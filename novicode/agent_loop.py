@@ -154,6 +154,19 @@ def _lang_from_path(path: str) -> str:
 
 _CODE_BLOCK_RE = re.compile(r"```\w*\n")
 
+_AFFIRMATIVE_RE = re.compile(
+    r"^[\s]*(はい|うん|お願い|実行して|実行|やって|いいよ|OK|yes|ええ|頼む|して|"
+    r"よろしく|お願いします|go|run|sure)",
+    re.IGNORECASE,
+)
+
+
+def _is_affirmative(text: str) -> bool:
+    """Return True if text is a short affirmative response."""
+    stripped = text.strip()
+    return len(stripped) <= 30 and bool(_AFFIRMATIVE_RE.match(stripped))
+
+
 _TOOL_NUDGE = (
     "あなたの応答にコードブロックが含まれていますが、ツールが使われていません。\n"
     "コードは必ず write ツールでファイルに保存してください。\n"
@@ -164,7 +177,8 @@ _TOOL_NUDGE_AFTER_WRITE = (
     "コードは既に write ツールでファイルに保存されています。\n"
     "返答にコードを書く必要はありません。マークダウンのコードブロック（```）は使わないでください。\n"
     "コードの新しい部分の説明（箇条書き2〜3個）と"
-    "「実行してみましょうか？」の質問だけを書いてください。"
+    "「実行してみましょうか？」の質問だけを書いてください。\n"
+    "ユーザーが肯定したら bash で実行してください。コードを書き直さないこと。"
 )
 
 def _build_write_reminder(tool_calls: list, tool_results: list[dict]) -> str:
@@ -179,6 +193,7 @@ def _build_write_reminder(tool_calls: list, tool_results: list[dict]) -> str:
         f"\n\n【重要】コードは {path_str} に保存済みです。"
         "返答にコードを書かないでください（``` は禁止）。"
         "コードの説明（箇条書き2〜3個）と「実行してみましょうか？」の質問だけを書いてください。"
+        "ユーザーが肯定したら bash で実行してください。コードを書き直さないこと。"
         "ツール名（write, read, bash 等）を返答に含めないでください。"
     )
 
@@ -218,6 +233,7 @@ class AgentLoop:
         self.max_iterations = max_iterations
         self.research = research
         self.debug = debug
+        self._pending_execution_path: str | None = None
         self.messages: list[Message] = [
             Message(role="system", content=policy.build_system_prompt())
         ]
@@ -234,7 +250,16 @@ class AgentLoop:
             self._log("scope_rejection", {"input": user_input, "reason": scope.reason})
             return f"Sorry, this request is outside the supported scope.\n\n{scope.reason}"
 
-        self.messages.append(Message(role="user", content=user_input))
+        # Detect affirmative response to "実行してみましょうか？"
+        effective_input = user_input
+        if self._pending_execution_path and _is_affirmative(user_input):
+            effective_input = (
+                f"{user_input}\n\n"
+                f"【システム指示】ユーザーが実行を許可しました。"
+                f"bash ツールで `python {self._pending_execution_path}` を即座に実行してください。"
+                f"コードを書き直さないでください。"
+            )
+        self.messages.append(Message(role="user", content=effective_input))
         self._log("user", {"content": user_input})
 
         final_response = ""
@@ -345,7 +370,16 @@ class AgentLoop:
             yield f"Sorry, this request is outside the supported scope.\n\n{scope.reason}"
             return
 
-        self.messages.append(Message(role="user", content=user_input))
+        # Detect affirmative response to "実行してみましょうか？"
+        effective_input = user_input
+        if self._pending_execution_path and _is_affirmative(user_input):
+            effective_input = (
+                f"{user_input}\n\n"
+                f"【システム指示】ユーザーが実行を許可しました。"
+                f"bash ツールで `python {self._pending_execution_path}` を即座に実行してください。"
+                f"コードを書き直さないでください。"
+            )
+        self.messages.append(Message(role="user", content=effective_input))
         self._log("user", {"content": user_input})
 
         final_response = ""
@@ -491,6 +525,11 @@ class AgentLoop:
             result = self.tools.execute(tc.name, tc.arguments)
             self._log("tool_result", {"name": tc.name, "result": _truncate(result)})
             results.append(result)
+            # Track pending execution path for affirmative-response flow
+            if tc.name in ("write", "edit") and "error" not in result:
+                self._pending_execution_path = tc.arguments.get("path")
+            elif tc.name == "bash":
+                self._pending_execution_path = None
         return results
 
     def _filtered_tool_defs(self) -> list[dict]:
