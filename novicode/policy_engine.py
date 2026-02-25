@@ -7,11 +7,54 @@ from typing import Any
 
 from novicode.config import (
     SCOPE_DESCRIPTION,
+    Mode,
     ModeProfile,
     LanguageFamily,
     MODE_LANGUAGE,
 )
 from novicode.curriculum import Level, build_education_prompt
+
+
+# ── モード別の会話例 ─────────────────────────────────────────────────
+# 挨拶・曖昧な入力に対して、LLM が具体的な例を提示できるようにする
+
+_MODE_EXAMPLES: dict[Mode, list[str]] = {
+    Mode.PYTHON_BASIC: [
+        "「じゃんけんゲームを作って」",
+        "「1から100までの合計を計算して」",
+        "「九九の表を作って」",
+    ],
+    Mode.PY5: [
+        "「カラフルな円を描いて」",
+        "「虹色のアニメーションを作って」",
+        "「ランダムに星を描いて」",
+    ],
+    Mode.SKLEARN: [
+        "「アヤメのデータを分類して」",
+        "「回帰分析を試して」",
+        "「クラスタリングの例を見せて」",
+    ],
+    Mode.PANDAS: [
+        "「サンプルデータで棒グラフを作って」",
+        "「CSVを読み込んで分析して」",
+        "「データの平均と合計を計算して」",
+    ],
+    Mode.WEB_BASIC: [
+        "「ボタンをクリックしたら色が変わるページを作って」",
+        "「自己紹介ページを作って」",
+        "「カウンターアプリを作って」",
+    ],
+    Mode.AFRAME: [
+        "「3Dの箱を表示して」",
+        "「VR空間に球を並べて」",
+        "「回転するオブジェクトを作って」",
+    ],
+    Mode.THREEJS: [
+        "「回転する立方体を作って」",
+        "「3Dシーンにライトを追加して」",
+        "「パーティクルアニメーションを作って」",
+    ],
+}
 
 
 @dataclass(frozen=True)
@@ -86,12 +129,23 @@ class PolicyEngine:
         lang = MODE_LANGUAGE.get(self.profile.mode, LanguageFamily.PYTHON)
 
         # 会話ルールを最優先（プロンプト冒頭）に配置
+        examples = _MODE_EXAMPLES.get(self.profile.mode, [])
+        example_lines = "、".join(examples) if examples else ""
+        example_hint = (
+            f"\nたとえば {example_lines} のように話しかけてみてください、"
+            "と具体例を挙げて案内してください。"
+            if example_lines else ""
+        )
+
         conversation_rule = (
             "【最重要ルール】ユーザーが「こんにちは」「何ができる？」「ありがとう」"
             "のように会話しているときは、普通に日本語で会話してください。"
             "コードやツールは絶対に使わないでください。"
             "コードを書くのは「○○を作って」「○○を書いて」「プログラムして」"
-            "のようにユーザーがコード作成を頼んだときだけです。\n\n"
+            "のようにユーザーがコード作成を頼んだときだけです。\n"
+            "ユーザーの入力が挨拶や曖昧な質問のときは、フレンドリーに返事をしたあと、"
+            "何ができるかを具体例つきで案内してください。"
+            f"{example_hint}\n\n"
         )
 
         if lang == LanguageFamily.PYTHON:
