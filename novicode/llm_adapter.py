@@ -1,14 +1,18 @@
-"""LLM adapter — communicates with Ollama to run Qwen3 models."""
+"""LLM adapter — communicates with Ollama to run local LLM models."""
 
 from __future__ import annotations
 
 import json
+import time
 import urllib.request
 import urllib.error
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from novicode.config import OLLAMA_BASE_URL
+
+_MAX_CONNECT_RETRIES = 3
+_RETRY_DELAY = 2.0  # seconds between retries
 
 
 @dataclass
@@ -140,6 +144,27 @@ class LLMAdapter:
         self.model = model
         self.base_url = (base_url or OLLAMA_BASE_URL).rstrip("/")
 
+    def _open_with_retry(
+        self,
+        req: urllib.request.Request,
+        timeout: float = 300,
+    ) -> "http.client.HTTPResponse":
+        """Open a URL request with retries on transient failures."""
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_CONNECT_RETRIES):
+            try:
+                return urllib.request.urlopen(req, timeout=timeout)
+            except urllib.error.URLError as exc:
+                last_exc = exc
+                reason = getattr(exc, "reason", exc)
+                if attempt < _MAX_CONNECT_RETRIES - 1:
+                    time.sleep(_RETRY_DELAY)
+                    continue
+        raise ConnectionError(
+            f"Ollama ({self.base_url}) に接続できません: {last_exc}\n"
+            f"  確認: ollama serve が起動しているか / ollama pull {self.model}"
+        ) from last_exc
+
     def chat(
         self,
         messages: list[Message],
@@ -161,14 +186,8 @@ class LLMAdapter:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=300) as resp:
-                data = json.loads(resp.read().decode())
-        except urllib.error.URLError as exc:
-            raise ConnectionError(
-                f"Cannot reach Ollama at {self.base_url}. "
-                f"Ensure Ollama is running with '{self.model}' loaded."
-            ) from exc
+        with self._open_with_retry(req) as resp:
+            data = json.loads(resp.read().decode())
 
         return self._parse_response(data)
 
@@ -206,13 +225,7 @@ class LLMAdapter:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        try:
-            resp = urllib.request.urlopen(req, timeout=300)
-        except urllib.error.URLError as exc:
-            raise ConnectionError(
-                f"Cannot reach Ollama at {self.base_url}. "
-                f"Ensure Ollama is running with '{self.model}' loaded."
-            ) from exc
+        resp = self._open_with_retry(req)
 
         # Set a per-read timeout on the underlying socket so we don't
         # block forever if Ollama stops sending data mid-stream.
