@@ -69,45 +69,41 @@ class TestHasDraw:
         assert has_draw(src) is True
 
 
-# ── BashTool py5 rewriting ─────────────────────────────────────────
+# ── BashTool py5 detection (replaces old rewrite tests) ───────────
 
-class TestBashToolPy5Rewrite:
-    def test_rewrite_in_py5_mode(self):
+class TestBashToolPy5Detection:
+    def test_detects_python_script_in_py5_mode(self):
         from novicode.config import Mode
         from novicode.tools.bash_tool import BashTool
         from unittest.mock import MagicMock
 
         security = MagicMock()
         tool = BashTool(security, "/tmp", mode=Mode.PY5)
-        assert tool._rewrite_for_py5("python sketch.py") == (
-            "python -m novicode.py5_runner sketch.py"
-        )
+        assert tool._is_py5_script_command("python sketch.py") is True
 
-    def test_no_rewrite_in_python_mode(self):
+    def test_no_detection_in_python_mode(self):
         from novicode.config import Mode
         from novicode.tools.bash_tool import BashTool
         from unittest.mock import MagicMock
 
         security = MagicMock()
         tool = BashTool(security, "/tmp", mode=Mode.PYTHON_BASIC)
-        assert tool._rewrite_for_py5("python sketch.py") == "python sketch.py"
+        assert tool._is_py5_script_command("python sketch.py") is False
 
-    def test_rewrite_python3(self):
+    def test_detects_python3(self):
         from novicode.config import Mode
         from novicode.tools.bash_tool import BashTool
         from unittest.mock import MagicMock
 
         security = MagicMock()
         tool = BashTool(security, "/tmp", mode=Mode.PY5)
-        assert tool._rewrite_for_py5("python3 my_sketch.py") == (
-            "python -m novicode.py5_runner my_sketch.py"
-        )
+        assert tool._is_py5_script_command("python3 my_sketch.py") is True
 
-    def test_no_rewrite_non_python(self):
+    def test_no_detection_non_python(self):
         from novicode.config import Mode
         from novicode.tools.bash_tool import BashTool
         from unittest.mock import MagicMock
 
         security = MagicMock()
         tool = BashTool(security, "/tmp", mode=Mode.PY5)
-        assert tool._rewrite_for_py5("ls -la") == "ls -la"
+        assert tool._is_py5_script_command("ls -la") is False
