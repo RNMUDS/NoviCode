@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# NoviCode セットアップスクリプト
+set -e
+
+GREEN='\033[38;2;118;185;0m'
+BOLD='\033[1m'
+DIM='\033[90m'
+WHITE='\033[97m'
+RESET='\033[0m'
+
+echo ""
+echo -e "${BOLD}${GREEN}  NoviCode セットアップ${RESET}"
+echo -e "${DIM}  ──────────────────────────────────────${RESET}"
+echo ""
+
+# uv が入っているか確認
+if ! command -v uv &> /dev/null; then
+    echo -e "  ${GREEN}❌${RESET} uv が見つかりません"
+    echo -e "  ${DIM}インストール: curl -LsSf https://astral.sh/uv/install.sh | sh${RESET}"
+    exit 1
+fi
+
+# uv sync 実行
+echo -e "  ${DIM}依存関係をインストール中...${RESET}"
+uv sync
+echo ""
+echo -e "  ${GREEN}✓${RESET} セットアップ完了！"
+echo ""
+echo -e "${DIM}  ──────────────────────────────────────${RESET}"
+echo -e "  ${WHITE}次のコマンドで起動できます:${RESET}"
+echo ""
+echo -e "    ${BOLD}${GREEN}uv run novicode${RESET}"
+echo ""
+echo -e "  ${DIM}モードを指定して起動:${RESET}"
+echo -e "    ${WHITE}uv run novicode --mode py5${RESET}          ${DIM}# Py5 クリエイティブコーディング${RESET}"
+echo -e "    ${WHITE}uv run novicode --mode python_basic${RESET}  ${DIM}# Python 基礎${RESET}"
+echo -e "    ${WHITE}uv run novicode --mode pandas${RESET}        ${DIM}# pandas データ分析${RESET}"
+echo -e "${DIM}  ──────────────────────────────────────${RESET}"
+echo ""
