@@ -14,6 +14,7 @@ from novicode.config import (
     build_mode_profile,
     validate_model,
     get_system_ram_gb,
+    list_ollama_models,
 )
 from novicode.llm_adapter import LLMAdapter
 from novicode.security_manager import SecurityManager
@@ -95,6 +96,63 @@ Keybinds:
 """
 
 
+def _format_size(size_bytes: int) -> str:
+    """Format byte size to human-readable string."""
+    gb = size_bytes / (1024**3)
+    if gb >= 1.0:
+        return f"{gb:.1f} GB"
+    mb = size_bytes / (1024**2)
+    return f"{mb:.0f} MB"
+
+
+def _select_model_interactive() -> str:
+    """Show interactive model selection and return the chosen model name.
+
+    Exits the process if no models are available.
+    """
+    models = list_ollama_models()
+
+    if not models:
+        print(f"\n  {_GREEN}❌ Ollama に接続できないか、モデルがインストールされていません。{_RESET}")
+        print(f"  {_DIM}Ollama が起動しているか確認してください: ollama serve{_RESET}")
+        sys.exit(1)
+
+    if len(models) == 1:
+        name = models[0]["name"]
+        print(f"\n  {_GREEN}🧠 モデル自動選択:{_RESET} {_WHITE}{name}{_RESET}")
+        return name
+
+    # Display selection menu
+    sep = "─" * 46
+    print(f"\n  {_GREEN}利用可能なモデル:{_RESET}")
+    print(f"  {_DIM}{sep}{_RESET}")
+    for i, m in enumerate(models, 1):
+        size_str = _format_size(m["size"])
+        name = m["name"]
+        print(f"    {_WHITE}{i:>2}. {name:<36}{_RESET}{_DIM}({size_str}){_RESET}")
+    print(f"  {_DIM}{sep}{_RESET}")
+
+    while True:
+        try:
+            raw = input(f"  {_GREEN}番号を入力 (default: 1):{_RESET} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            sys.exit(0)
+
+        if not raw:
+            return models[0]["name"]
+
+        try:
+            idx = int(raw)
+        except ValueError:
+            print(f"  {_DIM}数字を入力してください{_RESET}")
+            continue
+
+        if 1 <= idx <= len(models):
+            return models[idx - 1]["name"]
+        print(f"  {_DIM}1〜{len(models)} の番号を入力してください{_RESET}")
+
+
 def _render_code_card(event: CodeWriteEvent) -> str:
     """Render a CodeWriteEvent as a syntax-highlighted code card."""
     filename = os.path.basename(event.path)
@@ -136,12 +194,10 @@ def main() -> None:
             sys.exit(1)
         return
 
-    # ── Validate model ──────────────────────────────────────────
-    try:
-        model_name = validate_model(args.model)
-    except ValueError as exc:
-        print(f"Error: {exc}")
-        sys.exit(1)
+    # ── Select / validate model ────────────────────────────────
+    model_name = validate_model(args.model)
+    if model_name == "auto":
+        model_name = _select_model_interactive()
 
     mode = Mode(args.mode)
 
@@ -337,6 +393,8 @@ def main() -> None:
                     continue
 
                 # Run agent turn (streaming with syntax highlighting)
+                # Suspend raw mode so Ctrl+C generates SIGINT during LLM calls
+                reader.suspend()
                 fmt = StreamFormatter()
                 header_shown = False
                 spinner = Spinner()
@@ -373,8 +431,17 @@ def main() -> None:
                     if header_shown:
                         sys.stdout.write("\n\n")
                         sys.stdout.flush()
+                except KeyboardInterrupt:
+                    spinner.stop()
+                    sys.stdout.write(f"\n  {_DIM}(Ctrl+C: 中断しました){_RESET}\n\n")
+                    sys.stdout.flush()
+                except (TimeoutError, ConnectionError) as exc:
+                    spinner.stop()
+                    sys.stdout.write(f"\n  {_DIM}⚠ {exc}{_RESET}\n\n")
+                    sys.stdout.flush()
                 finally:
                     spinner.stop()
+                    reader.resume()
 
     except KeyboardInterrupt:
         print("\nInterrupted.")

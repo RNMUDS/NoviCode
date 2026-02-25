@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from novicode.config import SUPPORTED_MODELS, Mode, DEFAULT_MAX_ITERATIONS
+from novicode.config import Mode, DEFAULT_MAX_ITERATIONS
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         type=str,
         default="auto",
-        help=f"Model to use: {', '.join(sorted(SUPPORTED_MODELS))} or 'auto' (default: auto)",
+        help="Model name to use, or 'auto' for interactive selection from Ollama (default: auto)",
     )
     parser.add_argument(
         "--mode",

@@ -2,32 +2,41 @@
 
 from __future__ import annotations
 
+import json
 import os
 import platform
+import urllib.request
+import urllib.error
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import FrozenSet
 
 
-# ── Supported models ────────────────────────────────────────────────
+# ── Ollama model discovery ──────────────────────────────────────────
 
-SUPPORTED_MODELS: dict[str, dict] = {
-    "gpt-oss-swallow:20b-rl": {
-        "min_ram_gb": 16,
-        "context_length": 32768,
-        "description": "GPT-OSS-Swallow 20B RL — bilingual JP/EN, Q4_K_M quantized",
-    },
-    "qwen3:8b": {
-        "min_ram_gb": 8,
-        "context_length": 8192,
-        "description": "Qwen3 8B — lightweight, suitable for ≤32 GB RAM",
-    },
-    "qwen3-coder:30b": {
-        "min_ram_gb": 32,
-        "context_length": 16384,
-        "description": "Qwen3-Coder 30B — full capacity, requires ≥32 GB RAM",
-    },
-}
+def list_ollama_models(base_url: str | None = None) -> list[dict]:
+    """Fetch installed models from Ollama's /api/tags endpoint.
+
+    Returns a list of dicts with keys: name, size, modified_at.
+    Returns an empty list on connection failure.
+    """
+    url = (base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
+    try:
+        req = urllib.request.Request(f"{url}/api/tags")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:
+        return []
+
+    models = []
+    for m in data.get("models", []):
+        models.append({
+            "name": m.get("name", ""),
+            "size": m.get("size", 0),
+            "modified_at": m.get("modified_at", ""),
+        })
+    return models
+
 
 RAM_THRESHOLD_GB = 32  # boundary for auto-selection
 
@@ -47,20 +56,12 @@ def get_system_ram_gb() -> float:
         return 16.0  # conservative fallback
 
 
-def auto_select_model() -> str:
-    """Pick the best supported model based on available RAM."""
-    return "gpt-oss-swallow:20b-rl"
-
-
 def validate_model(name: str) -> str:
-    """Validate and return the canonical model name, or raise."""
-    if name == "auto":
-        return auto_select_model()
-    if name not in SUPPORTED_MODELS:
-        allowed = ", ".join(sorted(SUPPORTED_MODELS))
-        raise ValueError(
-            f"Unsupported model '{name}'. Allowed models: {allowed}"
-        )
+    """Validate and return the model name.
+
+    - ``"auto"`` is returned as-is (caller handles interactive selection).
+    - Any other string is accepted as a model name.
+    """
     return name
 
 

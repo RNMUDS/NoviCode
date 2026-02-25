@@ -8,7 +8,7 @@ import urllib.error
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from novicode.config import OLLAMA_BASE_URL, SUPPORTED_MODELS
+from novicode.config import OLLAMA_BASE_URL
 
 
 @dataclass
@@ -137,8 +137,6 @@ class LLMAdapter:
     """Sends chat requests to a local Ollama instance."""
 
     def __init__(self, model: str, base_url: str | None = None) -> None:
-        if model not in SUPPORTED_MODELS:
-            raise ValueError(f"Unsupported model: {model}")
         self.model = model
         self.base_url = (base_url or OLLAMA_BASE_URL).rstrip("/")
 
@@ -178,12 +176,20 @@ class LLMAdapter:
         self,
         messages: list[Message],
         tools: list[dict] | None = None,
+        chunk_timeout: float = 120.0,
     ) -> Iterator[str | LLMResponse]:
         """Stream a chat completion from Ollama.
 
         Yields:
             str: content chunks as they arrive
             LLMResponse: final complete response (always the last item)
+
+        Parameters
+        ----------
+        chunk_timeout:
+            Maximum seconds to wait for the next chunk of data.
+            If no data arrives within this window, a ``TimeoutError``
+            is raised so the caller can abort gracefully.
         """
         payload = {
             "model": self.model,
@@ -207,6 +213,15 @@ class LLMAdapter:
                 f"Cannot reach Ollama at {self.base_url}. "
                 f"Ensure Ollama is running with '{self.model}' loaded."
             ) from exc
+
+        # Set a per-read timeout on the underlying socket so we don't
+        # block forever if Ollama stops sending data mid-stream.
+        sock = resp.fp.raw._sock if hasattr(resp.fp, "raw") else None
+        if sock is not None:
+            try:
+                sock.settimeout(chunk_timeout)
+            except Exception:
+                pass
 
         accumulated_content = ""
         tool_calls: list[ToolCall] = []
@@ -241,6 +256,12 @@ class LLMAdapter:
                         except json.JSONDecodeError:
                             args = {"raw": args}
                     tool_calls.append(ToolCall(name=name, arguments=args))
+        except (TimeoutError, OSError) as exc:
+            resp.close()
+            raise TimeoutError(
+                f"Ollama did not respond for {chunk_timeout:.0f}s. "
+                "The model may be overloaded or unresponsive."
+            ) from exc
         finally:
             resp.close()
 

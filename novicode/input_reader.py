@@ -264,6 +264,29 @@ class InputReader:
             return True
         return False
 
+    def suspend(self) -> None:
+        """Temporarily restore cooked terminal mode.
+
+        Call this before blocking operations (LLM calls) so that
+        Ctrl+C generates SIGINT instead of being swallowed by raw mode.
+        """
+        if self._old_attr is not None:
+            try:
+                termios.tcsetattr(self._fd, termios.TCSANOW, self._old_attr)
+            except (OSError, termios.error):
+                pass
+
+    def resume(self) -> None:
+        """Re-enter raw terminal mode after :meth:`suspend`."""
+        if self._old_attr is not None:
+            try:
+                tty.setraw(self._fd)
+                attr = termios.tcgetattr(self._fd)
+                attr[1] |= termios.OPOST
+                termios.tcsetattr(self._fd, termios.TCSANOW, attr)
+            except (OSError, termios.error):
+                pass
+
     def _disable_raw(self) -> None:
         if self._kitty_supported:
             try:
