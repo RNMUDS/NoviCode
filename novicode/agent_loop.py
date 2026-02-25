@@ -47,14 +47,32 @@ _PARAM_RE = re.compile(
     re.DOTALL,
 )
 
+# Match: write({ path: "...", content: "..." }) or write({path:"...",content:"..."})
+_FUNC_CALL_RE = re.compile(
+    r"(\w+)\(\s*\{(.*?)\}\s*\)",
+    re.DOTALL,
+)
+# Match key-value pairs inside { }: key: "value" or key: 'value'
+_KV_RE = re.compile(
+    r"""(\w+)\s*:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')""",
+    re.DOTALL,
+)
+
 
 def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
-    """Parse ``<function=NAME>`` XML tool calls embedded in plain text.
+    """Parse tool calls embedded as plain text in LLM output.
+
+    Supports two formats:
+    1. XML: ``<function=write><parameter=path>...</parameter></function>``
+    2. JS-like: ``write({ path: "...", content: "..." })``
 
     Returns a list of parsed :class:`ToolCall` objects and the text with
-    those XML fragments removed.
+    those fragments removed.
     """
     calls: list[ToolCall] = []
+    patterns_matched: list[re.Pattern] = []
+
+    # Format 1: XML-style <function=NAME>...</function>
     for m in _TEXT_TOOL_RE.finditer(text):
         name = m.group(1)
         body = m.group(2)
@@ -62,7 +80,32 @@ def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
         for pm in _PARAM_RE.finditer(body):
             args[pm.group(1)] = pm.group(2)
         calls.append(ToolCall(name=name, arguments=args))
-    cleaned = _TEXT_TOOL_RE.sub("", text).strip()
+    if calls:
+        patterns_matched.append(_TEXT_TOOL_RE)
+
+    # Format 2: JS-like write({ path: "...", content: "..." })
+    known_tools = {"write", "read", "edit", "bash", "grep", "glob"}
+    for m in _FUNC_CALL_RE.finditer(text):
+        name = m.group(1)
+        if name not in known_tools:
+            continue
+        body = m.group(2)
+        args = {}
+        for kv in _KV_RE.finditer(body):
+            key = kv.group(1)
+            val = kv.group(2) if kv.group(2) is not None else kv.group(3)
+            # Unescape common sequences
+            val = val.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+            args[key] = val
+        if args:
+            calls.append(ToolCall(name=name, arguments=args))
+            if _FUNC_CALL_RE not in patterns_matched:
+                patterns_matched.append(_FUNC_CALL_RE)
+
+    cleaned = text
+    for pat in patterns_matched:
+        cleaned = pat.sub("", cleaned)
+    cleaned = cleaned.strip()
     return calls, cleaned
 
 
