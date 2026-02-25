@@ -85,6 +85,15 @@ class PolicyEngine:
         base = self.profile.system_prompt
         lang = MODE_LANGUAGE.get(self.profile.mode, LanguageFamily.PYTHON)
 
+        # 会話ルールを最優先（プロンプト冒頭）に配置
+        conversation_rule = (
+            "【最重要ルール】ユーザーが「こんにちは」「何ができる？」「ありがとう」"
+            "のように会話しているときは、普通に日本語で会話してください。"
+            "コードやツールは絶対に使わないでください。"
+            "コードを書くのは「○○を作って」「○○を書いて」「プログラムして」"
+            "のようにユーザーがコード作成を頼んだときだけです。\n\n"
+        )
+
         if lang == LanguageFamily.PYTHON:
             tool_rules = (
                 "- コードは必ず write 関数を呼び出してファイルに保存すること。"
@@ -102,10 +111,7 @@ class PolicyEngine:
             )
 
         tool_section = (
-            "\n\n【会話ルール】\n"
-            "- 挨拶・質問・雑談など、コードが不要なメッセージには通常の対話で返答する。\n"
-            "- コードを書くのは、ユーザーが明示的にプログラムの作成・実行を求めたときだけ。\n"
-            "\n【ツール使用ルール】\n"
+            "\n\n【ツール使用ルール】\n"
             f"{tool_rules}"
             "- ツール名（write, read, bash, edit, grep, glob）を"
             "ユーザーへの返答に含めてはいけない。\n"
@@ -125,8 +131,8 @@ class PolicyEngine:
             self.profile.mode, self.level, self.mastered_concepts,
         )
         if education:
-            return education + tool_section + "\n\n" + base + constraint
-        return base + tool_section + constraint
+            return conversation_rule + education + tool_section + "\n\n" + base + constraint
+        return conversation_rule + base + tool_section + constraint
 
 
 def _get_extension(filename: str) -> str:
