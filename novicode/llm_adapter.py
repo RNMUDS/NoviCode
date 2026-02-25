@@ -149,17 +149,24 @@ class LLMAdapter:
         req: urllib.request.Request,
         timeout: float = 300,
     ) -> "http.client.HTTPResponse":
-        """Open a URL request with retries on transient failures."""
+        """Open a URL request with retries on transient failures.
+
+        Raises :class:`urllib.error.HTTPError` immediately on 4xx responses
+        (client errors are not transient).  Retries only on connection-level
+        failures and 5xx server errors.
+        """
         last_exc: Exception | None = None
         for attempt in range(_MAX_CONNECT_RETRIES):
             try:
                 return urllib.request.urlopen(req, timeout=timeout)
+            except urllib.error.HTTPError as exc:
+                if 400 <= exc.code < 500:
+                    raise  # client errors are not transient
+                last_exc = exc
             except urllib.error.URLError as exc:
                 last_exc = exc
-                reason = getattr(exc, "reason", exc)
-                if attempt < _MAX_CONNECT_RETRIES - 1:
-                    time.sleep(_RETRY_DELAY)
-                    continue
+            if attempt < _MAX_CONNECT_RETRIES - 1:
+                time.sleep(_RETRY_DELAY)
         raise ConnectionError(
             f"Ollama ({self.base_url}) に接続できません: {last_exc}\n"
             f"  確認: ollama serve が起動しているか / ollama pull {self.model}"
@@ -186,8 +193,26 @@ class LLMAdapter:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with self._open_with_retry(req) as resp:
-            data = json.loads(resp.read().decode())
+        try:
+            with self._open_with_retry(req) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            if exc.code == 400 and tools:
+                # Model likely doesn't support tool calling — retry without tools
+                payload.pop("tools", None)
+                body2 = json.dumps(payload).encode()
+                req2 = urllib.request.Request(
+                    f"{self.base_url}/api/chat",
+                    data=body2,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self._open_with_retry(req2) as resp:
+                    data = json.loads(resp.read().decode())
+            else:
+                raise ConnectionError(
+                    f"Ollama エラー (HTTP {exc.code}): {exc.reason}"
+                ) from exc
 
         return self._parse_response(data)
 
@@ -225,7 +250,24 @@ class LLMAdapter:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        resp = self._open_with_retry(req)
+        try:
+            resp = self._open_with_retry(req)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 400 and tools:
+                # Model likely doesn't support tool calling — retry without tools
+                payload.pop("tools", None)
+                body2 = json.dumps(payload).encode()
+                req2 = urllib.request.Request(
+                    f"{self.base_url}/api/chat",
+                    data=body2,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                resp = self._open_with_retry(req2)
+            else:
+                raise ConnectionError(
+                    f"Ollama エラー (HTTP {exc.code}): {exc.reason}"
+                ) from exc
 
         # Set a per-read timeout on the underlying socket so we don't
         # block forever if Ollama stops sending data mid-stream.
