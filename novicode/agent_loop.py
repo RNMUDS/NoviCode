@@ -58,13 +58,31 @@ _KV_RE = re.compile(
     re.DOTALL,
 )
 
+# Match positional call: write("path", "content") or write('path', 'content')
+# Also matches prefixed forms like: py5.write(...), tool.write(...)
+_POSITIONAL_CALL_RE = re.compile(
+    r"""(?:\w+\.)?write\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*,\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*\)""",
+    re.DOTALL,
+)
+
+
+def _unescape(s: str) -> str:
+    """Unescape common escape sequences in a string value."""
+    return (
+        s.replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace('\\"', '"')
+        .replace("\\'", "'")
+    )
+
 
 def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
     """Parse tool calls embedded as plain text in LLM output.
 
-    Supports two formats:
+    Supports three formats:
     1. XML: ``<function=write><parameter=path>...</parameter></function>``
     2. JS-like: ``write({ path: "...", content: "..." })``
+    3. Positional: ``write("path", "content")`` (also ``py5.write(...)``)
 
     Returns a list of parsed :class:`ToolCall` objects and the text with
     those fragments removed.
@@ -94,13 +112,23 @@ def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
         for kv in _KV_RE.finditer(body):
             key = kv.group(1)
             val = kv.group(2) if kv.group(2) is not None else kv.group(3)
-            # Unescape common sequences
-            val = val.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+            val = _unescape(val)
             args[key] = val
         if args:
             calls.append(ToolCall(name=name, arguments=args))
             if _FUNC_CALL_RE not in patterns_matched:
                 patterns_matched.append(_FUNC_CALL_RE)
+
+    # Format 3: Positional write("path", "content") / py5.write("path", "content")
+    if not calls:
+        for m in _POSITIONAL_CALL_RE.finditer(text):
+            path = m.group(1) if m.group(1) is not None else m.group(2)
+            content = m.group(3) if m.group(3) is not None else m.group(4)
+            path = _unescape(path)
+            content = _unescape(content)
+            calls.append(ToolCall(name="write", arguments={"path": path, "content": content}))
+        if calls:
+            patterns_matched.append(_POSITIONAL_CALL_RE)
 
     cleaned = text
     for pat in patterns_matched:

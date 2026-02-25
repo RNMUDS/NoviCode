@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from novicode.agent_loop import AgentLoop, StatusEvent, _has_code_block, _TOOL_NUDGE, _MAX_NUDGES_PER_TURN
+from novicode.agent_loop import AgentLoop, StatusEvent, _has_code_block, _TOOL_NUDGE, _MAX_NUDGES_PER_TURN, _parse_text_tool_calls
 from novicode.config import Mode, build_mode_profile
 from novicode.curriculum import Level
 from novicode.llm_adapter import LLMResponse, Message, ToolCall, TOOL_DEFINITIONS
@@ -298,3 +298,54 @@ class TestStatusEvents:
         ts_idx = kinds.index("tool_start")
         td_idx = kinds.index("tool_done")
         assert td_idx > ts_idx
+
+
+# ── _parse_text_tool_calls tests ──────────────────────────────────
+
+
+class TestParseTextToolCalls:
+    """Tests for text-based tool call parsing."""
+
+    def test_xml_format(self):
+        text = '<function=write><parameter=path>hello.py</parameter><parameter=content>print("hi")</parameter></function>'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "write"
+        assert calls[0].arguments["path"] == "hello.py"
+        assert calls[0].arguments["content"] == 'print("hi")'
+
+    def test_js_format(self):
+        text = 'write({ path: "test.py", content: "x = 1\\ny = 2" })'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].arguments["path"] == "test.py"
+        assert calls[0].arguments["content"] == "x = 1\ny = 2"
+
+    def test_positional_double_quotes(self):
+        text = 'write("circle.py", "import py5\\n\\ndef setup():\\n    size(400, 400)")'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "write"
+        assert calls[0].arguments["path"] == "circle.py"
+        assert "import py5" in calls[0].arguments["content"]
+        assert "\n" in calls[0].arguments["content"]
+
+    def test_positional_single_quotes(self):
+        text = "write('test.py', 'print(1)\\nprint(2)')"
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].arguments["path"] == "test.py"
+        assert calls[0].arguments["content"] == "print(1)\nprint(2)"
+
+    def test_prefixed_write(self):
+        text = "py5.write('sketch.py', 'import py5\\npy5.size(400, 400)')"
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "write"
+        assert calls[0].arguments["path"] == "sketch.py"
+
+    def test_no_tool_call(self):
+        text = "こんにちは！何かお手伝いできますか？"
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 0
+        assert cleaned == text

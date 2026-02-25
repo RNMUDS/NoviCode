@@ -115,9 +115,16 @@ class PolicyEngine:
             f"{tool_rules}"
             "- ツール名（write, read, bash, edit, grep, glob）を"
             "ユーザーへの返答に含めてはいけない。\n"
-            "  例: ×「write 関数で保存します」→ ○「保存します」\n"
-            "  例: ×「bash で実行します」→ ○「実行します」\n"
             "  ツールは黙って使い、ユーザーには結果だけ伝える。\n"
+            "\n【ツール呼び出しフォーマット（重要）】\n"
+            "コードをファイルに保存するときは、必ずこの形式で書く:\n"
+            '<function=write>\n'
+            '<parameter=path>ファイル名.py</parameter>\n'
+            '<parameter=content>\n'
+            'ここにコードを書く（普通に改行する）\n'
+            '</parameter>\n'
+            '</function>\n'
+            "コードは \\n で1行にせず、普通に改行して複数行で書くこと。\n"
         )
 
         constraint = (
