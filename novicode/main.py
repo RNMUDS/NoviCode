@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import sys
 import time
 
@@ -341,11 +342,18 @@ def main() -> None:
         debug=args.debug,
     )
 
-    # ── Check Ollama connectivity ───────────────────────────────
+    # ── Check Ollama connectivity (hard gate) ─────────────────
+    sys.stdout.write(f"  {_DIM}Ollama に接続中...{_RESET}")
+    sys.stdout.flush()
     if not llm.ping():
-        print(f"\n  WARNING: Cannot reach Ollama or model '{model_name}' not loaded.")
-        print(f"  Run: ollama pull {model_name}")
-        print()
+        sys.stdout.write(f"\r\033[2K")
+        print(f"  {_GREEN}❌ Ollama に接続できません{_RESET}")
+        print(f"  {_DIM}以下を確認してください:{_RESET}")
+        print(f"    1. Ollama が起動しているか: {_WHITE}ollama serve{_RESET}")
+        print(f"    2. モデルがインストール済みか: {_WHITE}ollama pull {model_name}{_RESET}")
+        sys.exit(1)
+    sys.stdout.write(f"\r\033[2K  {_GREEN}✓{_RESET} {_DIM}Ollama 接続OK{_RESET}\n")
+    sys.stdout.flush()
 
     print()  # blank line before prompt
 
@@ -443,18 +451,44 @@ def main() -> None:
                 # Run agent turn (streaming with syntax highlighting)
                 # Suspend raw mode so Ctrl+C generates SIGINT during LLM calls
                 reader.suspend()
+
+                # Double Ctrl+C → force exit (safety net for hung sockets)
+                _ctrl_c_count = 0
+
+                def _sigint_during_llm(sig, frame):
+                    nonlocal _ctrl_c_count
+                    _ctrl_c_count += 1
+                    if _ctrl_c_count >= 2:
+                        spinner.stop()
+                        reader.resume()
+                        sys.stdout.write(f"\n  {_DIM}(強制終了){_RESET}\n")
+                        sys.stdout.flush()
+                        os._exit(1)
+                    raise KeyboardInterrupt
+
+                # SIGALRM handler for hard timeout
+                def _alarm_handler(sig, frame):
+                    raise TimeoutError("LLM が応答しません（タイムアウト）")
+
+                prev_sigint = signal.getsignal(signal.SIGINT)
+                prev_sigalrm = signal.getsignal(signal.SIGALRM)
+                signal.signal(signal.SIGINT, _sigint_during_llm)
+                signal.signal(signal.SIGALRM, _alarm_handler)
+
                 fmt = StreamFormatter()
                 header_shown = False
                 spinner = Spinner()
                 try:
+                    signal.alarm(180)  # 3 min hard ceiling
                     for chunk in loop.run_turn_stream(user_input):
+                        signal.alarm(180)  # reset on each chunk
                         if isinstance(chunk, StatusEvent):
                             if chunk.kind == "thinking":
-                                spinner.start("考え中...")
+                                spinner.start("考え中...  (Ctrl+C: 中断)")
                             elif chunk.kind == "tool_start":
                                 spinner.start(f"実行中: {chunk.detail}...")
                             elif chunk.kind == "tool_done":
-                                spinner.start("考え中...")
+                                spinner.start("考え中...  (Ctrl+C: 中断)")
                             continue
                         if isinstance(chunk, CodeWriteEvent):
                             spinner.stop()
@@ -488,6 +522,9 @@ def main() -> None:
                     sys.stdout.write(f"\n  {_DIM}⚠ {exc}{_RESET}\n\n")
                     sys.stdout.flush()
                 finally:
+                    signal.alarm(0)  # cancel alarm
+                    signal.signal(signal.SIGINT, prev_sigint)
+                    signal.signal(signal.SIGALRM, prev_sigalrm)
                     spinner.stop()
                     reader.resume()
 
