@@ -16,6 +16,7 @@ import select
 import sys
 import termios
 import tty
+import unicodedata
 from dataclasses import dataclass
 
 
@@ -40,6 +41,14 @@ _KITTY_DISABLE = "\x1b[<u"    # Pop keyboard mode
 def _write(s: str) -> None:
     sys.stdout.write(s)
     sys.stdout.flush()
+
+
+def _char_width(ch: str) -> int:
+    """Return the terminal display width of a single character."""
+    if len(ch) != 1:
+        return sum(_char_width(c) for c in ch)
+    cat = unicodedata.east_asian_width(ch)
+    return 2 if cat in ("F", "W") else 1
 
 
 def _has_data(fd: int, timeout: float = 0.05) -> bool:
@@ -143,8 +152,10 @@ class InputReader:
             # ── Backspace ────────────────────────────────────────
             if ch in ("\x7f", "\x08"):
                 if lines[cur_line]:
+                    removed = lines[cur_line][-1]
                     lines[cur_line] = lines[cur_line][:-1]
-                    _write("\b \b")
+                    w = _char_width(removed)
+                    _write("\b" * w + " " * w + "\b" * w)
                 elif cur_line > 0:
                     # Join with previous line
                     lines.pop(cur_line)
@@ -226,11 +237,35 @@ class InputReader:
             self._old_attr = None
 
     def _read_char(self) -> str | None:
-        """Read a single character from stdin."""
+        """Read a single UTF-8 character from stdin.
+
+        Inspects the leading byte to determine how many continuation
+        bytes are needed, then reads and decodes the full sequence.
+        """
         try:
             b = os.read(self._fd, 1)
             if not b:
                 return None
+            first = b[0]
+            # Determine expected UTF-8 byte length from leading byte
+            if first < 0x80:
+                # ASCII (1 byte)
+                return b.decode("utf-8")
+            elif first < 0xC0:
+                # Unexpected continuation byte — return replacement
+                return b.decode("utf-8", errors="replace")
+            elif first < 0xE0:
+                remaining = 1  # 2-byte sequence (e.g. Latin accents)
+            elif first < 0xF0:
+                remaining = 2  # 3-byte sequence (e.g. CJK, Japanese)
+            else:
+                remaining = 3  # 4-byte sequence (e.g. emoji)
+            # Read continuation bytes
+            for _ in range(remaining):
+                extra = os.read(self._fd, 1)
+                if not extra:
+                    break
+                b += extra
             return b.decode("utf-8", errors="replace")
         except OSError:
             return None
