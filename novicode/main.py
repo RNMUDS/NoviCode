@@ -105,6 +105,50 @@ def _format_size(size_bytes: int) -> str:
     return f"{mb:.0f} MB"
 
 
+_MODE_DESCRIPTIONS: dict[str, str] = {
+    "python_basic": "Python 基礎（変数・関数・クラス・アルゴリズム）",
+    "py5":          "Py5 クリエイティブコーディング（図形・アニメーション）",
+    "sklearn":      "scikit-learn 機械学習（分類・回帰・クラスタリング）",
+    "pandas":       "pandas データ分析（表・グラフ・可視化）",
+    "web_basic":    "Web 基礎（HTML・CSS・JavaScript）",
+    "aframe":       "A-Frame WebXR（3D シーン・VR）",
+    "threejs":      "Three.js 3D グラフィックス",
+}
+
+
+def _select_mode_interactive() -> str:
+    """Show interactive mode selection and return the chosen mode value."""
+    modes = [m.value for m in Mode]
+
+    sep = "─" * 52
+    print(f"\n  {_GREEN}学習モードを選んでください:{_RESET}")
+    print(f"  {_DIM}{sep}{_RESET}")
+    for i, mv in enumerate(modes, 1):
+        desc = _MODE_DESCRIPTIONS.get(mv, mv)
+        print(f"    {_WHITE}{i}. {desc}{_RESET}")
+    print(f"  {_DIM}{sep}{_RESET}")
+
+    while True:
+        try:
+            raw = input(f"  {_GREEN}番号を入力 (default: 1):{_RESET} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            sys.exit(0)
+
+        if not raw:
+            return modes[0]
+
+        try:
+            idx = int(raw)
+        except ValueError:
+            print(f"  {_DIM}数字を入力してください{_RESET}")
+            continue
+
+        if 1 <= idx <= len(modes):
+            return modes[idx - 1]
+        print(f"  {_DIM}1〜{len(modes)} の番号を入力してください{_RESET}")
+
+
 def _select_model_interactive() -> str:
     """Show interactive model selection and return the chosen model name.
 
@@ -193,6 +237,10 @@ def main() -> None:
             print(f"Error: {exc}")
             sys.exit(1)
         return
+
+    # ── Select mode (interactive if not specified) ────────────
+    if args.mode is None:
+        args.mode = _select_mode_interactive()
 
     # ── Select / validate model ────────────────────────────────
     model_name = validate_model(args.model)

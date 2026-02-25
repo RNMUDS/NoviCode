@@ -22,9 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mode",
         type=str,
-        required=True,
+        default=None,
         choices=[m.value for m in Mode],
-        help="Required. One of: " + ", ".join(m.value for m in Mode),
+        help="One of: " + ", ".join(m.value for m in Mode) + " (default: interactive selection)",
     )
     parser.add_argument(
         "--safe-mode",
