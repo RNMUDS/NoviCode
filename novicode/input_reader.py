@@ -102,8 +102,6 @@ class InputReader:
     @property
     def send_hint(self) -> str:
         """Return keybind hint text appropriate for the current terminal."""
-        if self._kitty_supported:
-            return "Enter: 改行  Shift+Enter: 送信  ESC: 終了"
         return "Enter: 改行  空Enter: 送信  ESC: 終了"
 
     # ── Context manager ──────────────────────────────────────────
@@ -162,14 +160,15 @@ class InputReader:
 
             # ── Enter ────────────────────────────────────────────
             if ch in ("\r", "\n"):
-                # Fallback send: Enter on empty line when content exists
+                # Send: Enter on empty line when earlier lines have content
                 has_content = any(l.strip() for l in lines)
-                if not self._kitty_supported and has_content and lines[cur_line] == "":
+                if has_content and lines[cur_line] == "":
                     _write("\n")
                     if self.box_bottom:
                         _write(self.box_bottom + "\n")
+                    # Strip trailing empty lines before sending
                     return InputResult(
-                        text="\n".join(lines[:-1]).strip(),
+                        text="\n".join(lines).strip(),
                         action="send",
                     )
                 # Normal newline
