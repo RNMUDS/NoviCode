@@ -167,6 +167,7 @@ _SYSTEM_PROMPTS: dict[Mode, str] = {
         "For animations, define both setup() and draw(). "
         "スクリプトの最後に必ず py5.run_sketch() を書く。"
         "Do NOT call py5.save() or py5.exit_sketch(). "
+        "py5.write() はファイル保存の関数ではない。ファイル保存には write ツールを使うこと。"
         "Focus on geometry, animation, color, and interactive sketches."
     ),
     Mode.SKLEARN: (

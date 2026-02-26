@@ -178,7 +178,9 @@ class PolicyEngine:
             "ユーザーへの返答に含めてはいけない。\n"
             "  ツールは黙って使い、ユーザーには結果だけ伝える。\n"
             "\n【ツール呼び出しフォーマット（重要）】\n"
-            "コードをファイルに保存するときは、必ずこの形式で書く:\n"
+            "コードをファイルに保存するときは、この形式で書く:\n\n"
+            'write({ path: "ファイル名.py", content: "ここにコードを書く" })\n\n'
+            "または:\n\n"
             '<function=write>\n'
             '<parameter=path>ファイル名.py</parameter>\n'
             '<parameter=content>\n'
@@ -195,12 +197,24 @@ class PolicyEngine:
             "- ネットワーク通信・パッケージ追加は禁止。\n"
         )
 
+        # py5 モード限定: 具体的なワークフロー例を追加
+        py5_workflow = ""
+        if self.profile.mode == Mode.PY5:
+            py5_workflow = (
+                "\n\n【py5 ワークフロー例】\n"
+                "ユーザー: 「赤い円を描いて」\n"
+                "→ write ツールで circle.py に保存\n"
+                "→ 「キャンバスに赤い円を描くコードを保存しました。実行してみましょうか？」\n"
+                "→ ユーザー: 「はい」\n"
+                "→ bash ツールで `python circle.py` を実行\n"
+            )
+
         education = build_education_prompt(
             self.profile.mode, self.level, self.mastered_concepts,
         )
         if education:
-            return conversation_rule + education + tool_section + "\n\n" + base + constraint
-        return conversation_rule + base + tool_section + constraint
+            return conversation_rule + education + tool_section + py5_workflow + "\n\n" + base + constraint
+        return conversation_rule + base + tool_section + py5_workflow + constraint
 
 
 def _get_extension(filename: str) -> str:

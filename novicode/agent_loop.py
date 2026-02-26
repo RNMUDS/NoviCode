@@ -149,6 +149,13 @@ def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
     cleaned = text
     for pat in patterns_matched:
         cleaned = pat.sub("", cleaned)
+    if calls:
+        # write rescue 時、周囲のbare codeも除去（テキスト表示を防止）
+        cleaned = re.sub(
+            r"^\s*(?:import \w+|py5\.\w+\(.*?\)|py5\.run_sketch\(\))\s*$",
+            "", cleaned, flags=re.MULTILINE,
+        )
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)  # 連続空行を整理
     cleaned = cleaned.strip()
     return calls, cleaned
 
@@ -171,7 +178,8 @@ def _lang_from_path(path: str) -> str:
 _CODE_BLOCK_RE = re.compile(r"```\w*\n")
 # Detect bare Python code output without markdown fences (e.g. "import py5\npy5.size(...)")
 _BARE_CODE_RE = re.compile(
-    r"^\s*(?:import |from \w+ import )\w+.*\n\s*\w+[\.\(]",
+    r"^\s*(?:import |from \w+ import |def |class )\w+.*\n\s*\w+[\.\(]"
+    r"|^\s*py5\.\w+\(",
     re.MULTILINE,
 )
 
@@ -192,6 +200,12 @@ _TOOL_NUDGE = (
     "あなたの応答にコードブロックが含まれていますが、ツールが使われていません。\n"
     "コードは必ず write ツールでファイルに保存してください。\n"
     "コードをテキストとして表示するのではなく、write 関数を呼び出してください。"
+)
+
+_TOOL_NUDGE_PY5_WRITE = (
+    "py5.write() はファイル保存の関数ではありません。\n"
+    "コードをファイルに保存するには write ツールを使ってください。\n"
+    'write({ path: "ファイル名.py", content: "コード" }) の形式で呼び出してください。'
 )
 
 _TOOL_NUDGE_AFTER_WRITE = (
@@ -305,6 +319,16 @@ class AgentLoop:
 
             # No tool calls → check for code blocks in text, then validate
             if not response.tool_calls:
+                # Nudge: py5.write() misuse (API confused with tool)
+                if "py5.write(" in response.content and nudge_count < _MAX_NUDGES_PER_TURN:
+                    nudge_count += 1
+                    self._log("nudge", {"reason": "py5_write_misuse", "count": nudge_count})
+                    self.messages.append(Message(role="assistant", content=response.content))
+                    self.messages.append(Message(role="user", content=_TOOL_NUDGE_PY5_WRITE))
+                    if self.debug:
+                        print(f"  [nudge {nudge_count}] py5.write() misuse detected")
+                    continue
+
                 # Nudge: LLM output code as text instead of using tools
                 if _has_code_block(response.content) and nudge_count < _MAX_NUDGES_PER_TURN:
                     nudge_count += 1
@@ -441,6 +465,16 @@ class AgentLoop:
 
             # No tool calls → validate before yielding to user
             if not response.tool_calls:
+                # Nudge: py5.write() misuse (API confused with tool)
+                if "py5.write(" in response.content and nudge_count < _MAX_NUDGES_PER_TURN:
+                    nudge_count += 1
+                    self._log("nudge", {"reason": "py5_write_misuse", "count": nudge_count})
+                    self.messages.append(Message(role="assistant", content=response.content))
+                    self.messages.append(Message(role="user", content=_TOOL_NUDGE_PY5_WRITE))
+                    if self.debug:
+                        print(f"  [nudge {nudge_count}] py5.write() misuse detected")
+                    continue
+
                 # Nudge: LLM output code as text instead of using tools
                 if _has_code_block(response.content) and nudge_count < _MAX_NUDGES_PER_TURN:
                     nudge_count += 1
