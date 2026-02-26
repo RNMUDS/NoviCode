@@ -352,8 +352,9 @@ class TestRunTurnMassive:
     def test_nudge_then_validation_failure_then_success(self):
         llm = MagicMock()
         llm.chat.side_effect = [
-            _resp("```python\nprint(1)\n```"),  # nudge
-            _resp("import requests\nrequests.get('http://x')"),  # violation
+            _resp("```python\nprint(1)\n```"),  # nudge (code block)
+            _resp("import requests\nrequests.get('http://x')"),  # nudge (bare code)
+            _resp("bad code"),  # violation
             _resp("x = 42"),  # clean
         ]
         loop = _loop(llm)
@@ -365,7 +366,7 @@ class TestRunTurnMassive:
         ]
         result = loop.run_turn("Hello")
         nudges = [m for m in loop.messages if m.content == _TOOL_NUDGE]
-        assert len(nudges) == 1
+        assert len(nudges) == 2
         assert loop.metrics.violations == 1
 
     # --- Max iterations reached ---

@@ -65,6 +65,13 @@ _POSITIONAL_CALL_RE = re.compile(
     re.DOTALL,
 )
 
+# Match positional call with triple-quoted content:
+# write("path", """content""") or py5.write("path", """content""")
+_TRIPLE_QUOTE_CALL_RE = re.compile(
+    r"""(?:\w+\.)?write\(\s*(?:"([^"]+)"|'([^']+)')\s*,\s*"{3}(.*?)"{3}\s*\)""",
+    re.DOTALL,
+)
+
 
 def _unescape(s: str) -> str:
     """Unescape common escape sequences in a string value."""
@@ -121,6 +128,15 @@ def _parse_text_tool_calls(text: str) -> tuple[list[ToolCall], str]:
 
     # Format 3: Positional write("path", "content") / py5.write("path", "content")
     if not calls:
+        # Try triple-quoted content first: write("path", """content""")
+        for m in _TRIPLE_QUOTE_CALL_RE.finditer(text):
+            path = m.group(1) if m.group(1) is not None else m.group(2)
+            content = m.group(3)
+            calls.append(ToolCall(name="write", arguments={"path": path, "content": content.strip()}))
+        if calls:
+            patterns_matched.append(_TRIPLE_QUOTE_CALL_RE)
+
+    if not calls:
         for m in _POSITIONAL_CALL_RE.finditer(text):
             path = m.group(1) if m.group(1) is not None else m.group(2)
             content = m.group(3) if m.group(3) is not None else m.group(4)
@@ -153,6 +169,11 @@ def _lang_from_path(path: str) -> str:
 
 
 _CODE_BLOCK_RE = re.compile(r"```\w*\n")
+# Detect bare Python code output without markdown fences (e.g. "import py5\npy5.size(...)")
+_BARE_CODE_RE = re.compile(
+    r"^\s*(?:import |from \w+ import )\w+.*\n\s*\w+[\.\(]",
+    re.MULTILINE,
+)
 
 _AFFIRMATIVE_RE = re.compile(
     r"^[\s]*(はい|うん|お願い|実行して|実行|やって|いいよ|OK|yes|ええ|頼む|して|"
@@ -201,8 +222,8 @@ _MAX_NUDGES_PER_TURN = 2
 
 
 def _has_code_block(text: str) -> bool:
-    """Return True if text contains a fenced code block."""
-    return bool(_CODE_BLOCK_RE.search(text))
+    """Return True if text contains a fenced code block or bare Python code."""
+    return bool(_CODE_BLOCK_RE.search(text)) or bool(_BARE_CODE_RE.search(text))
 
 
 class AgentLoop:
