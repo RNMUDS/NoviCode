@@ -48,32 +48,35 @@ class BashTool:
         """Run a py5 sketch with Popen (non-blocking).
 
         * If the process exits within *_PY5_STARTUP_TIMEOUT* seconds the
-          output / error is captured and returned.
+          error output is captured and returned.
         * If it is still running after the timeout we assume the sketch
-          window opened successfully.
+          window opened successfully — pipes are closed so the child
+          process does not block on writes.
         """
         proc = subprocess.Popen(
             command,
             shell=True,
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
             cwd=self.working_dir,
         )
         try:
-            stdout, stderr = proc.communicate(timeout=_PY5_STARTUP_TIMEOUT)
+            _, stderr = proc.communicate(timeout=_PY5_STARTUP_TIMEOUT)
             # Process exited quickly — likely an error
-            output = stdout
-            if stderr:
-                output += f"\nSTDERR:\n{stderr}"
 
             # Auto-install py5 if missing
             if "No module named 'py5'" in (stderr or ""):
                 return self._handle_py5_missing(command)
 
+            output = ""
+            if stderr:
+                output = f"STDERR:\n{stderr}"
             return {"output": output, "returncode": proc.returncode}
         except subprocess.TimeoutExpired:
-            # Still running → window is open
+            # Still running → window is open; close pipe so child won't block
+            if proc.stderr:
+                proc.stderr.close()
             return {"output": "スケッチウィンドウが開きました。", "returncode": 0}
 
     # ── py5 auto-install ──────────────────────────────────────────

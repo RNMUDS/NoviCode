@@ -58,17 +58,19 @@ class TestPy5WindowExecution:
         mock_proc.communicate.side_effect = subprocess.TimeoutExpired(
             cmd="python sketch.py", timeout=_PY5_STARTUP_TIMEOUT
         )
+        mock_proc.stderr = MagicMock()
 
         with patch("novicode.tools.bash_tool.subprocess.Popen", return_value=mock_proc):
             result = py5_tool.execute({"command": "python sketch.py"})
 
         assert result["returncode"] == 0
         assert "スケッチウィンドウが開きました" in result["output"]
+        mock_proc.stderr.close.assert_called_once()
 
     def test_immediate_error_captured(self, py5_tool):
-        """When the process exits quickly with an error, capture it."""
+        """When the process exits quickly with an error, capture stderr."""
         mock_proc = MagicMock()
-        mock_proc.communicate.return_value = ("", "SyntaxError: invalid syntax")
+        mock_proc.communicate.return_value = (None, "SyntaxError: invalid syntax")
         mock_proc.returncode = 1
 
         with patch("novicode.tools.bash_tool.subprocess.Popen", return_value=mock_proc):
@@ -77,17 +79,17 @@ class TestPy5WindowExecution:
         assert result["returncode"] == 1
         assert "SyntaxError" in result["output"]
 
-    def test_normal_stdout_captured(self, py5_tool):
-        """Normal stdout from a quick exit is returned."""
+    def test_normal_exit_no_stderr(self, py5_tool):
+        """Normal exit with no stderr → empty output (stdout goes to DEVNULL)."""
         mock_proc = MagicMock()
-        mock_proc.communicate.return_value = ("done\n", "")
+        mock_proc.communicate.return_value = (None, "")
         mock_proc.returncode = 0
 
         with patch("novicode.tools.bash_tool.subprocess.Popen", return_value=mock_proc):
             result = py5_tool.execute({"command": "python sketch.py"})
 
         assert result["returncode"] == 0
-        assert "done" in result["output"]
+        assert result["output"] == ""
 
 
 # ── py5 auto-install ──────────────────────────────────────────────
@@ -98,7 +100,7 @@ class TestPy5AutoInstall:
         # First call: process exits quickly with ModuleNotFoundError
         mock_proc_fail = MagicMock()
         mock_proc_fail.communicate.return_value = (
-            "",
+            None,
             "ModuleNotFoundError: No module named 'py5'",
         )
         mock_proc_fail.returncode = 1
@@ -108,6 +110,7 @@ class TestPy5AutoInstall:
         mock_proc_ok.communicate.side_effect = subprocess.TimeoutExpired(
             cmd="python sketch.py", timeout=_PY5_STARTUP_TIMEOUT
         )
+        mock_proc_ok.stderr = MagicMock()
 
         # pip install succeeds
         mock_install = MagicMock()
@@ -130,7 +133,7 @@ class TestPy5AutoInstall:
         """If pip install fails, return error."""
         mock_proc = MagicMock()
         mock_proc.communicate.return_value = (
-            "",
+            None,
             "ModuleNotFoundError: No module named 'py5'",
         )
         mock_proc.returncode = 1
