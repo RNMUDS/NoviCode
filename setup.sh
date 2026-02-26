@@ -20,6 +20,12 @@ fi
 # uv sync 実行（出力はそのまま表示）
 uv sync
 
+# macOS: .venv の UF_HIDDEN フラグを除去
+# (.で始まるディレクトリに macOS が自動付与 → site.py が .pth を無視する問題の回避)
+if [[ "$(uname)" == "Darwin" ]] && [[ -d .venv ]]; then
+    chflags -R nohidden .venv 2>/dev/null || true
+fi
+
 # ガイド表示
 echo ""
 echo -e "  ${GREEN}✓${RESET} セットアップ完了！"
