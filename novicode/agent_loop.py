@@ -52,9 +52,9 @@ _FUNC_CALL_RE = re.compile(
     r"(\w+)\(\s*\{(.*?)\}\s*\)",
     re.DOTALL,
 )
-# Match key-value pairs inside { }: key: "value" or key: 'value'
+# Match key-value pairs inside { }: key: "value" or "key": "value"
 _KV_RE = re.compile(
-    r"""(\w+)\s*:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')""",
+    r""""?(\w+)"?\s*:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')""",
     re.DOTALL,
 )
 
