@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from novicode.agent_loop import AgentLoop, StatusEvent, _has_code_block, _TOOL_NUDGE, _MAX_NUDGES_PER_TURN, _parse_text_tool_calls
+from novicode.agent_loop import AgentLoop, StatusEvent, _has_code_block, _TOOL_NUDGE, _TOOL_NUDGE_PY5_WRITE, _MAX_NUDGES_PER_TURN, _parse_text_tool_calls
 from novicode.config import Mode, build_mode_profile
 from novicode.curriculum import Level
 from novicode.llm_adapter import LLMResponse, Message, ToolCall, TOOL_DEFINITIONS
@@ -349,3 +349,188 @@ class TestParseTextToolCalls:
         calls, cleaned = _parse_text_tool_calls(text)
         assert len(calls) == 0
         assert cleaned == text
+
+    # ── _KV_RE quoted key tests (bash JSON-style) ──────────────────
+
+    def test_js_format_quoted_keys(self):
+        """JSON-style quoted keys: bash({ "command": "python file.py" })"""
+        text = 'bash({ "command": "python red_circle.py" })'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "bash"
+        assert calls[0].arguments["command"] == "python red_circle.py"
+
+    def test_js_format_quoted_keys_write(self):
+        """JSON-style quoted keys for write tool."""
+        text = 'write({ "path": "hello.py", "content": "print(1)" })'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "write"
+        assert calls[0].arguments["path"] == "hello.py"
+        assert calls[0].arguments["content"] == "print(1)"
+
+    def test_js_format_mixed_quoting(self):
+        """Mix of quoted and unquoted keys."""
+        text = 'bash({ "command": "echo hi" })'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].arguments["command"] == "echo hi"
+
+    def test_js_format_multiline_quoted_keys(self):
+        """Multiline JSON-style with quoted keys and indentation."""
+        text = (
+            'bash({\n'
+            '  "command": "python /path/to/circle.py"\n'
+            '})'
+        )
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "bash"
+        assert "circle.py" in calls[0].arguments["command"]
+
+    # ── Triple-quoted content tests ─────────────────────────────────
+
+    def test_triple_quote_write(self):
+        """write("path", \\"\\"\\"content\\"\\"\\") with triple-quoted content."""
+        text = 'write("sketch.py", """import py5\n\ndef setup():\n    py5.size(400, 400)\n""")'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].arguments["path"] == "sketch.py"
+        assert "import py5" in calls[0].arguments["content"]
+
+    def test_py5_triple_quote_write(self):
+        """py5.write("path", \\"\\"\\"content\\"\\"\\") rescue."""
+        text = 'py5.write("circle.py", """import py5\npy5.run_sketch()""")'
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert calls[0].name == "write"
+        assert calls[0].arguments["path"] == "circle.py"
+
+    # ── Surrounding bare code cleanup after parse ───────────────────
+
+    def test_cleanup_surrounding_py5_code(self):
+        """After write rescue, surrounding import/py5.* lines are removed."""
+        text = (
+            "import py5\n"
+            'py5.write("circle.py", """def setup():\n    py5.size(400, 400)""")\n'
+            "py5.run_sketch()"
+        )
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert "import py5" not in cleaned
+        assert "py5.run_sketch()" not in cleaned
+
+    def test_cleanup_preserves_non_code_text(self):
+        """Surrounding text explanation is preserved after cleanup."""
+        text = (
+            "赤い円を描くコードです。\n"
+            'write({ path: "circle.py", content: "x=1" })\n'
+            "実行してみましょうか？"
+        )
+        calls, cleaned = _parse_text_tool_calls(text)
+        assert len(calls) == 1
+        assert "赤い円" in cleaned
+        assert "実行" in cleaned
+
+
+# ── _has_code_block: new bare code patterns ───────────────────────
+
+class TestBareCodeDetection:
+    """Tests for extended _BARE_CODE_RE patterns (def, class, py5.*)."""
+
+    def test_bare_def_function(self):
+        text = "def setup():\n    py5.size(400, 400)"
+        assert _has_code_block(text) is True
+
+    def test_bare_class(self):
+        text = "class Particle:\n    Particle.count = 0"
+        assert _has_code_block(text) is True
+
+    def test_bare_py5_call(self):
+        text = "py5.size(400, 400)"
+        assert _has_code_block(text) is True
+
+    def test_bare_py5_circle(self):
+        text = "py5.circle(200, 200, 100)"
+        assert _has_code_block(text) is True
+
+    def test_plain_mention_not_detected(self):
+        """Mentioning py5 in a sentence is not bare code."""
+        text = "py5ライブラリを使って描画できます。"
+        assert _has_code_block(text) is False
+
+    def test_single_def_line_not_detected(self):
+        """A single def line without continuation is not detected."""
+        text = "def は関数を定義するキーワードです。"
+        assert _has_code_block(text) is False
+
+
+# ── py5.write() nudge tests ──────────────────────────────────────
+
+class TestPy5WriteNudge:
+    """Tests for py5.write() misuse nudge in run_turn."""
+
+    def test_py5_write_triggers_nudge(self):
+        """Unparseable py5.write() → py5-specific nudge (not _POSITIONAL_CALL_RE)."""
+        llm = MagicMock()
+        # py5.write() with variable args — not parseable as tool call
+        llm.chat.side_effect = [
+            LLMResponse(
+                content="py5.write(file_name, code_content) でファイルを保存します",
+                tool_calls=[],
+            ),
+            LLMResponse(content="OK, using write tool.", tool_calls=[
+                ToolCall(name="write", arguments={"path": "circle.py", "content": "import py5"})
+            ]),
+            LLMResponse(content="Done!", tool_calls=[]),
+        ]
+
+        loop = _make_loop(llm, mode=Mode.PY5)
+        loop.tools.execute.return_value = {"status": "ok"}
+        loop.run_turn("赤い円を描いて")
+
+        py5_nudges = [m for m in loop.messages if m.content == _TOOL_NUDGE_PY5_WRITE]
+        assert len(py5_nudges) >= 1, "py5.write nudge should be injected"
+
+    def test_py5_write_nudge_in_stream(self):
+        """Streaming: unparseable py5.write() → py5-specific nudge."""
+        llm = MagicMock()
+
+        def _stream(messages, tools=None):
+            py5_nudge_count = sum(
+                1 for m in messages if m.content == _TOOL_NUDGE_PY5_WRITE
+            )
+            if py5_nudge_count == 0:
+                # Variable args — not parseable
+                content = "py5.write(path, content) を使います"
+                yield content
+                yield LLMResponse(content=content, tool_calls=[])
+            else:
+                yield "OK"
+                yield LLMResponse(content="OK", tool_calls=[])
+
+        llm.chat_stream.side_effect = _stream
+
+        loop = _make_loop(llm, mode=Mode.PY5)
+        list(loop.run_turn_stream("赤い円を描いて"))
+
+        py5_nudges = [m for m in loop.messages if m.content == _TOOL_NUDGE_PY5_WRITE]
+        assert len(py5_nudges) >= 1
+
+    def test_parseable_py5_write_no_nudge(self):
+        """py5.write('file', 'content') IS parsed → rescued as write tool, no nudge."""
+        llm = MagicMock()
+        llm.chat.side_effect = [
+            LLMResponse(
+                content="py5.write('circle.py', 'import py5\\npy5.size(400,400)')",
+                tool_calls=[],
+            ),
+            LLMResponse(content="Done!", tool_calls=[]),
+        ]
+
+        loop = _make_loop(llm, mode=Mode.PY5)
+        loop.tools.execute.return_value = {"status": "ok"}
+        loop.run_turn("赤い円を描いて")
+
+        py5_nudges = [m for m in loop.messages if m.content == _TOOL_NUDGE_PY5_WRITE]
+        assert len(py5_nudges) == 0, "Parseable py5.write should be rescued, not nudged"
