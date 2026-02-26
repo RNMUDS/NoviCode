@@ -20,10 +20,28 @@ fi
 # uv sync 実行（出力はそのまま表示）
 uv sync
 
-# macOS: .venv の UF_HIDDEN フラグを除去
-# (.で始まるディレクトリに macOS が自動付与 → site.py が .pth を無視する問題の回避)
+# macOS UF_HIDDEN 対策: sitecustomize.py で editable install の finder を手動ロード
+# (macOS が .venv に UF_HIDDEN を付与 → site.py が .pth をスキップする問題の回避)
 if [[ "$(uname)" == "Darwin" ]] && [[ -d .venv ]]; then
-    chflags -R nohidden .venv 2>/dev/null || true
+    SITE_PKG=$(.venv/bin/python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+    if [[ -n "$SITE_PKG" ]]; then
+        cat > "$SITE_PKG/_fix_editable.py" << 'PYEOF'
+"""macOS UF_HIDDEN workaround: manually process skipped .pth files."""
+import os, glob
+_sp = os.path.dirname(__file__)
+for _pth in glob.glob(os.path.join(_sp, "__editable__*.pth")):
+    with open(_pth) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line.startswith("import "):
+                exec(_line)
+PYEOF
+        # Append import to sitecustomize.py (create if missing, skip if already patched)
+        _SC="$SITE_PKG/sitecustomize.py"
+        if ! grep -q "_fix_editable" "$_SC" 2>/dev/null; then
+            echo "import _fix_editable  # macOS UF_HIDDEN workaround" >> "$_SC"
+        fi
+    fi
 fi
 
 # ガイド表示
